@@ -4,6 +4,8 @@
 # Standard EKS uses the AWS EBS CSI driver provisioner ebs.csi.aws.com.
 
 {{ $ec := $state.ekscluster }}
+{{ $obs := $state.observed }}
+{{ $readiness := $obs._readiness }}
 
 {{ if $ec.render.defaultStorageClass }}
 ---
@@ -34,4 +36,27 @@ spec:
   providerConfigRef:
     name: {{ $ec.cluster.name }}
     kind: ProviderConfig
+
+{{ if and (get $readiness "default-storage-class") (get $readiness "k8s-provider-config") }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-default-storage-class-before-k8s-pc
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-default-storage-class-before-k8s-pc" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: {{ $ec.cluster.name }}-k8s-provider-config
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: {{ $ec.cluster.name }}-default-storage-class
+{{ end }}
 {{ end }}

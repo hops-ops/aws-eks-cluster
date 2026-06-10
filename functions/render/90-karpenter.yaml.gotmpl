@@ -2,6 +2,9 @@
 
 {{- $ec := $state.ekscluster }}
 {{- $obs := $state.observed }}
+{{- $readiness := $obs._readiness }}
+{{- $k8sProviderConfigReady := get $readiness "k8s-provider-config" | default false }}
+{{- $helmProviderConfigReady := get $readiness "helm-provider-config" | default false }}
 
 {{- if $ec.render.karpenterNamespace }}
 ---
@@ -29,6 +32,29 @@ spec:
   readiness:
     policy: DeriveFromCelQuery
     celQuery: "has(object.metadata.uid)"
+
+{{- if and (get $readiness "karpenter-namespace") $k8sProviderConfigReady }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-karpenter-namespace-before-k8s-pc
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-karpenter-namespace-before-k8s-pc" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: {{ $ec.cluster.name }}-k8s-provider-config
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: {{ $ec.cluster.name }}-karpenter-namespace
+{{- end }}
 {{- end }}
 
 {{- if $ec.render.karpenterHelm }}
@@ -79,6 +105,75 @@ spec:
   providerConfigRef:
     name: {{ $ec.cluster.name }}
     kind: ProviderConfig
+
+{{- if and (get $readiness "karpenter-release") $helmProviderConfigReady }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-karpenter-release-before-helm-pc
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-karpenter-release-before-helm-pc" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: {{ $ec.cluster.name }}-helm-provider-config
+  by:
+    apiVersion: helm.m.crossplane.io/v1beta1
+    kind: Release
+    resourceRef:
+      name: {{ $ec.cluster.name }}-karpenter
+{{- end }}
+
+{{- if and (get $readiness "karpenter-release") $obs.karpenterIrsa.ready }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-karpenter-release-before-irsa
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-karpenter-release-before-irsa" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: aws.hops.ops.com.ai/v1alpha1
+    kind: IRSA
+    resourceRef:
+      name: {{ $ec.karpenter.irsaName }}
+  by:
+    apiVersion: helm.m.crossplane.io/v1beta1
+    kind: Release
+    resourceRef:
+      name: {{ $ec.cluster.name }}-karpenter
+{{- end }}
+
+{{- if and (get $readiness "karpenter-release") (get $readiness "karpenter-namespace") }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-karpenter-release-before-namespace
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-karpenter-release-before-namespace" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: {{ $ec.cluster.name }}-karpenter-namespace
+  by:
+    apiVersion: helm.m.crossplane.io/v1beta1
+    kind: Release
+    resourceRef:
+      name: {{ $ec.cluster.name }}-karpenter
+{{- end }}
 {{- end }}
 
 {{- if $ec.render.karpenterCapacity }}
@@ -144,6 +239,77 @@ spec:
   providerConfigRef:
     name: {{ $ec.cluster.name }}
     kind: ProviderConfig
+
+{{- $nodeClassResourceName := printf "ec2-nodeclass-%s" $class.name }}
+{{- $nodeClassReady := get $readiness $nodeClassResourceName | default false }}
+{{- if and $nodeClassReady $k8sProviderConfigReady }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-{{ $class.name }}-before-k8s-pc
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "delete-%s-before-k8s-pc" $class.name) }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: {{ $ec.cluster.name }}-k8s-provider-config
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: {{ $ec.cluster.name }}-{{ $class.name }}
+{{- end }}
+
+{{- if and $nodeClassReady (get $readiness "karpenter-release") }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-{{ $class.name }}-before-karpenter-release
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "delete-%s-before-karpenter-release" $class.name) }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: helm.m.crossplane.io/v1beta1
+    kind: Release
+    resourceRef:
+      name: {{ $ec.cluster.name }}-karpenter
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: {{ $ec.cluster.name }}-{{ $class.name }}
+{{- end }}
+
+{{- if and $nodeClassReady $obs.nodeRole.ready }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-{{ $class.name }}-before-node-role
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "delete-%s-before-node-role" $class.name) }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: iam.aws.m.upbound.io/v1beta1
+    kind: Role
+    resourceRef:
+      name: {{ $ec.iam.nodeRoleName }}
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: {{ $ec.cluster.name }}-{{ $class.name }}
+{{- end }}
 {{- end }}
 {{- end }}
 
@@ -187,5 +353,76 @@ spec:
   providerConfigRef:
     name: {{ $ec.cluster.name }}
     kind: ProviderConfig
+
+{{- $nodePoolReady := get $readiness "nodepool-default" | default false }}
+{{- $defaultNodeClassReady := get $readiness (printf "ec2-nodeclass-%s" $ec.karpenter.nodeClasses.default.name) | default false }}
+{{- if and $nodePoolReady $k8sProviderConfigReady }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-nodepool-before-k8s-pc
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-nodepool-before-k8s-pc" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: {{ $ec.cluster.name }}-k8s-provider-config
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: {{ $ec.cluster.name }}-{{ $ec.karpenter.nodePools.default.name }}
+{{- end }}
+
+{{- if and $nodePoolReady (get $readiness "karpenter-release") }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-nodepool-before-karpenter-release
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-nodepool-before-karpenter-release" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: helm.m.crossplane.io/v1beta1
+    kind: Release
+    resourceRef:
+      name: {{ $ec.cluster.name }}-karpenter
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: {{ $ec.cluster.name }}-{{ $ec.karpenter.nodePools.default.name }}
+{{- end }}
+
+{{- if and $nodePoolReady $defaultNodeClassReady }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-nodepool-before-nodeclass
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-nodepool-before-nodeclass" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: {{ $ec.cluster.name }}-{{ $ec.karpenter.nodeClasses.default.name }}
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: {{ $ec.cluster.name }}-{{ $ec.karpenter.nodePools.default.name }}
+{{- end }}
 {{- end }}
 {{- end }}

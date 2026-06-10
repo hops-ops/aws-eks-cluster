@@ -2,6 +2,7 @@
 
 {{- $ec := $state.ekscluster }}
 {{- $obs := $state.observed }}
+{{- $readiness := $obs._readiness }}
 
 {{- if $ec.render.addons }}
 {{- $addons := list
@@ -45,6 +46,53 @@ spec:
   providerConfigRef:
     name: {{ $ec.providerConfig.name }}
     kind: {{ $ec.providerConfig.kind }}
+
+{{- $addonReady := get $readiness (printf "addon-%s" $addon.resource) | default false }}
+{{- if and $obs.cluster.ready $addonReady }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-addon-{{ $addon.resource }}-before-cluster
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "delete-addon-%s-before-cluster" $addon.resource) }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: Cluster
+    resourceRef:
+      name: {{ $ec.cluster.name }}
+  by:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: Addon
+    resourceRef:
+      name: {{ $ec.cluster.name }}-{{ $addon.resource }}
+{{- end }}
+
+{{- if and (eq $addon.key "ebsCsi") $obs.ebsCsiIrsa.ready $addonReady }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-addon-ebs-csi-before-irsa
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-addon-ebs-csi-before-irsa" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: aws.hops.ops.com.ai/v1alpha1
+    kind: IRSA
+    resourceRef:
+      name: {{ $ec.karpenter.ebsCsiIrsaName }}
+  by:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: Addon
+    resourceRef:
+      name: {{ $ec.cluster.name }}-{{ $addon.resource }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

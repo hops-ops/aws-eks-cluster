@@ -2,6 +2,7 @@
 
 {{- $ec := $state.ekscluster }}
 {{- $obs := $state.observed }}
+{{- $readiness := $obs._readiness }}
 
 {{- if $ec.render.interruption }}
 ---
@@ -57,6 +58,29 @@ spec:
     name: {{ $ec.providerConfig.name }}
     kind: {{ $ec.providerConfig.kind }}
 
+{{- if and $obs.karpenterQueue.ready (get $readiness "karpenter-queue-policy") }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-karpenter-queue-policy-before-queue
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-karpenter-queue-policy-before-queue" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: sqs.aws.m.upbound.io/v1beta1
+    kind: Queue
+    resourceRef:
+      name: {{ $ec.cluster.name }}-karpenter
+  by:
+    apiVersion: sqs.aws.m.upbound.io/v1beta1
+    kind: QueuePolicy
+    resourceRef:
+      name: {{ $ec.cluster.name }}-karpenter
+{{- end }}
+
 {{- $events := list
   (dict "name" "spot-interruption" "pattern" "{\"source\":[\"aws.ec2\"],\"detail-type\":[\"EC2 Spot Instance Interruption Warning\"]}")
   (dict "name" "rebalance" "pattern" "{\"source\":[\"aws.ec2\"],\"detail-type\":[\"EC2 Instance Rebalance Recommendation\"]}")
@@ -104,6 +128,54 @@ spec:
   providerConfigRef:
     name: {{ $ec.providerConfig.name }}
     kind: {{ $ec.providerConfig.kind }}
+
+{{- $ruleReady := get $readiness (printf "karpenter-rule-%s" $event.name) | default false }}
+{{- $targetReady := get $readiness (printf "karpenter-target-%s" $event.name) | default false }}
+{{- if and $ruleReady $targetReady }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-karpenter-target-{{ $event.name }}-before-rule
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "delete-karpenter-target-%s-before-rule" $event.name) }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: cloudwatchevents.aws.m.upbound.io/v1beta1
+    kind: Rule
+    resourceRef:
+      name: {{ $ec.cluster.name }}-karpenter-{{ $event.name }}
+  by:
+    apiVersion: cloudwatchevents.aws.m.upbound.io/v1beta1
+    kind: Target
+    resourceRef:
+      name: {{ $ec.cluster.name }}-karpenter-{{ $event.name }}
+{{- end }}
+
+{{- if and $obs.karpenterQueue.ready $targetReady }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-karpenter-target-{{ $event.name }}-before-queue
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "delete-karpenter-target-%s-before-queue" $event.name) }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: sqs.aws.m.upbound.io/v1beta1
+    kind: Queue
+    resourceRef:
+      name: {{ $ec.cluster.name }}-karpenter
+  by:
+    apiVersion: cloudwatchevents.aws.m.upbound.io/v1beta1
+    kind: Target
+    resourceRef:
+      name: {{ $ec.cluster.name }}-karpenter-{{ $event.name }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

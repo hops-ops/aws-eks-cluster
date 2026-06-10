@@ -67,6 +67,75 @@ spec:
   providerConfigRef:
     name: {{ $ec.providerConfig.name }}
     kind: {{ $ec.providerConfig.kind }}
+
+{{- if and $obs.cluster.ready (get $readiness "access-entry-default-admin") }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-access-entry-default-admin-before-cluster
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-access-entry-default-admin-before-cluster" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: Cluster
+    resourceRef:
+      name: {{ $ec.cluster.name }}
+  by:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: AccessEntry
+    resourceRef:
+      name: {{ $ec.cluster.name }}-default-admin
+{{- end }}
+
+{{- if and (get $readiness "access-entry-default-admin") (get $readiness "access-policy-default-admin") }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-access-policy-default-admin-before-entry
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-access-policy-default-admin-before-entry" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: AccessEntry
+    resourceRef:
+      name: {{ $ec.cluster.name }}-default-admin
+  by:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: AccessPolicyAssociation
+    resourceRef:
+      name: {{ $ec.cluster.name }}-default-admin-policy
+{{- end }}
+
+{{- if and $obs.cluster.ready (get $readiness "access-policy-default-admin") }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-access-policy-default-admin-before-cluster
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-access-policy-default-admin-before-cluster" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: Cluster
+    resourceRef:
+      name: {{ $ec.cluster.name }}
+  by:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: AccessPolicyAssociation
+    resourceRef:
+      name: {{ $ec.cluster.name }}-default-admin-policy
+{{- end }}
 {{- end }}
 
 {{- range $i, $entry := $ec.accessEntries }}
@@ -93,6 +162,30 @@ spec:
     name: {{ $ec.providerConfig.name }}
     kind: {{ $ec.providerConfig.kind }}
 
+{{- $entryReady := get $readiness (printf "access-entry-custom-%d" $i) | default false }}
+{{- if and $obs.cluster.ready $entryReady }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-access-entry-custom-{{ $i }}-before-cluster
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "delete-access-entry-custom-%d-before-cluster" $i) }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: Cluster
+    resourceRef:
+      name: {{ $ec.cluster.name }}
+  by:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: AccessEntry
+    resourceRef:
+      name: {{ $entryName }}
+{{- end }}
+
 {{- range $j, $policy := $entry.accessPolicies | default list }}
 {{- $policyName := printf "%s-custom-%d-policy-%d" $ec.cluster.name $i $j }}
 ---
@@ -118,6 +211,53 @@ spec:
   providerConfigRef:
     name: {{ $ec.providerConfig.name }}
     kind: {{ $ec.providerConfig.kind }}
+
+{{- $policyReady := get $readiness (printf "access-policy-custom-%d-%d" $i $j) | default false }}
+{{- if and $entryReady $policyReady }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-access-policy-custom-{{ $i }}-{{ $j }}-before-entry
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "delete-access-policy-custom-%d-%d-before-entry" $i $j) }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: AccessEntry
+    resourceRef:
+      name: {{ $entryName }}
+  by:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: AccessPolicyAssociation
+    resourceRef:
+      name: {{ $policyName }}
+{{- end }}
+
+{{- if and $obs.cluster.ready $policyReady }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-access-policy-custom-{{ $i }}-{{ $j }}-before-cluster
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "delete-access-policy-custom-%d-%d-before-cluster" $i $j) }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: Cluster
+    resourceRef:
+      name: {{ $ec.cluster.name }}
+  by:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: AccessPolicyAssociation
+    resourceRef:
+      name: {{ $policyName }}
+{{- end }}
 {{- end }}
 {{- end }}
 
@@ -137,6 +277,29 @@ spec:
     kind: Role
     resourceRef:
       name: {{ $ec.iam.nodeRoleName }}
+  by:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: AccessEntry
+    resourceRef:
+      name: {{ $ec.cluster.name }}-node-access
+{{- end }}
+
+{{- if and $obs.cluster.ready (get $readiness "access-entry-node") }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-access-entry-node-before-cluster
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-access-entry-node-before-cluster" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: Cluster
+    resourceRef:
+      name: {{ $ec.cluster.name }}
   by:
     apiVersion: eks.aws.m.upbound.io/v1beta1
     kind: AccessEntry

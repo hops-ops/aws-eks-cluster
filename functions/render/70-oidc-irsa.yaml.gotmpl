@@ -213,6 +213,29 @@ spec:
     name: {{ $ec.karpenter.serviceAccountName }}
   labels: {{ $ec.labels | toJson }}
   tags: {{ merge (dict "Name" (printf "%s-karpenter" $ec.cluster.name)) $ec.tags | toJson }}
+
+{{- if and $obs.oidcProvider.ready $obs.karpenterIrsa.ready }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-karpenter-irsa-before-oidc
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-karpenter-irsa-before-oidc" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: iam.aws.m.upbound.io/v1beta1
+    kind: OpenIDConnectProvider
+    resourceRef:
+      name: {{ $ec.cluster.name }}
+  by:
+    apiVersion: aws.hops.ops.com.ai/v1alpha1
+    kind: IRSA
+    resourceRef:
+      name: {{ $ec.karpenter.irsaName }}
+{{- end }}
 {{- end }}
 
 {{- if $ec.render.ebsCsiIrsa }}
@@ -270,4 +293,27 @@ spec:
     name: ebs-csi-controller-sa
   labels: {{ $ec.labels | toJson }}
   tags: {{ merge (dict "Name" (printf "%s-ebs-csi" $ec.cluster.name)) $ec.tags | toJson }}
+
+{{- if and $obs.oidcProvider.ready $obs.ebsCsiIrsa.ready }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-ebs-csi-irsa-before-oidc
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-ebs-csi-irsa-before-oidc" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: iam.aws.m.upbound.io/v1beta1
+    kind: OpenIDConnectProvider
+    resourceRef:
+      name: {{ $ec.cluster.name }}
+  by:
+    apiVersion: aws.hops.ops.com.ai/v1alpha1
+    kind: IRSA
+    resourceRef:
+      name: {{ $ec.karpenter.ebsCsiIrsaName }}
+{{- end }}
 {{- end }}
