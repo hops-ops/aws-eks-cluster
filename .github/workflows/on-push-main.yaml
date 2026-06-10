@@ -52,6 +52,15 @@ jobs:
       aws-use-oidc: true
       aws-account-id: "${{ vars.AWS_ACCOUNT_ID }}"
       aws-region: "${{ vars.AWS_REGION }}"
+      debug-resource-types: |
+        [
+          "eksclusters.aws.hops.ops.com.ai",
+          "clusters.eks.aws.m.upbound.io",
+          "fargateprofiles.eks.aws.m.upbound.io",
+          "clusterauths.eks.aws.m.upbound.io",
+          "objects.kubernetes.m.crossplane.io",
+          "releases.helm.m.crossplane.io"
+        ]
       timeout-minutes: 90
       cleanup-timeout-minutes: 90
       write-env-files: true
