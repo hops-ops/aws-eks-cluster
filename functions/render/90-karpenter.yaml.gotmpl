@@ -174,6 +174,29 @@ spec:
     resourceRef:
       name: {{ $ec.cluster.name }}-karpenter
 {{- end }}
+
+{{- if and (get $readiness "karpenter-release") $obs.addons.coredns.ready }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-karpenter-release-before-coredns
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-karpenter-release-before-coredns" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: Addon
+    resourceRef:
+      name: {{ $ec.cluster.name }}-coredns
+  by:
+    apiVersion: helm.m.crossplane.io/v1beta1
+    kind: Release
+    resourceRef:
+      name: {{ $ec.cluster.name }}-karpenter
+{{- end }}
 {{- end }}
 
 {{- if $ec.render.karpenterCapacity }}

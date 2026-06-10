@@ -463,6 +463,23 @@ _items = [
                         provisioner = "ebs.csi.aws.com"
                     }
                 }
+                {
+                    apiVersion = "protection.crossplane.io/v1beta1"
+                    kind = "Usage"
+                    metadata.name = "test-cluster-delete-karpenter-release-before-coredns"
+                    spec = {
+                        of = {
+                            apiVersion = "eks.aws.m.upbound.io/v1beta1"
+                            kind = "Addon"
+                            resourceRef.name = "test-cluster-coredns"
+                        }
+                        by = {
+                            apiVersion = "helm.m.crossplane.io/v1beta1"
+                            kind = "Release"
+                            resourceRef.name = "test-cluster-karpenter"
+                        }
+                    }
+                }
             ]
         }
     }
