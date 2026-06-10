@@ -1,0 +1,65 @@
+# code: language=yaml
+#
+# Set $state.observed IAM roles from atProvider values
+# Depends on: 001-state-observed-cluster.yaml.gotmpl ($state.observed._readiness, $state.observed._raw)
+#
+
+{{- $raw := $state.observed._raw }}
+{{- $readiness := $state.observed._readiness }}
+
+# ==============================================================================
+# Control Plane IAM Role
+# ==============================================================================
+{{- $cpRoleEntry := get $raw "iam-role-controlplane" | default dict }}
+{{- $cpRoleResource := $cpRoleEntry.resource | default dict }}
+{{- $cpRoleStatus := $cpRoleResource.status | default dict }}
+{{- $cpRoleAtProvider := $cpRoleStatus.atProvider | default dict }}
+
+{{- $cpRoleReady := get $readiness "iam-role-controlplane" | default false }}
+{{- $cpRoleArn := $cpRoleAtProvider.arn | default "" }}
+{{- $cpRoleName := $cpRoleAtProvider.id | default "" }}
+
+# ==============================================================================
+# Node IAM Role
+# ==============================================================================
+{{- $nodeRoleEntry := get $raw "iam-role-node" | default dict }}
+{{- $nodeRoleResource := $nodeRoleEntry.resource | default dict }}
+{{- $nodeRoleStatus := $nodeRoleResource.status | default dict }}
+{{- $nodeRoleAtProvider := $nodeRoleStatus.atProvider | default dict }}
+
+{{- $nodeRoleReady := get $readiness "iam-role-node" | default false }}
+{{- $nodeRoleArn := $nodeRoleAtProvider.arn | default "" }}
+{{- $nodeRoleName := $nodeRoleAtProvider.id | default "" }}
+
+# ==============================================================================
+# Fargate Pod Execution Role
+# ==============================================================================
+{{- $fargateRoleEntry := get $raw "iam-role-fargate" | default dict }}
+{{- $fargateRoleResource := $fargateRoleEntry.resource | default dict }}
+{{- $fargateRoleStatus := $fargateRoleResource.status | default dict }}
+{{- $fargateRoleAtProvider := $fargateRoleStatus.atProvider | default dict }}
+
+{{- $fargateRoleReady := get $readiness "iam-role-fargate" | default false }}
+{{- $fargateRoleArn := $fargateRoleAtProvider.arn | default "" }}
+{{- $fargateRoleName := $fargateRoleAtProvider.id | default "" }}
+
+# ==============================================================================
+# Set $state.observed IAM values
+# ==============================================================================
+{{- $state = set $state "observed" (merge $state.observed (dict
+  "controlPlaneRole" (dict
+    "ready" $cpRoleReady
+    "arn" $cpRoleArn
+    "name" $cpRoleName
+  )
+  "nodeRole" (dict
+    "ready" $nodeRoleReady
+    "arn" $nodeRoleArn
+    "name" $nodeRoleName
+  )
+  "fargateRole" (dict
+    "ready" $fargateRoleReady
+    "arn" $fargateRoleArn
+    "name" $fargateRoleName
+  )
+)) }}

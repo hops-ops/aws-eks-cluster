@@ -1,0 +1,436 @@
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: eksclusters.aws.hops.ops.com.ai
+spec:
+  scope: Namespaced
+  group: aws.hops.ops.com.ai
+  names:
+    kind: EKSCluster
+    plural: eksclusters
+  versions:
+  - name: v1alpha1
+    referenceable: true
+    served: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        description: Standard EKS cluster with Fargate bootstrap and Karpenter EC2 capacity.
+        required:
+        - spec
+        properties:
+          spec:
+            type: object
+            required:
+            - clusterName
+            - region
+            - accountId
+            - version
+            properties:
+              managementPolicies:
+                type: array
+                description: Management operations permitted on composed resources.
+                items:
+                  type: string
+                  enum: ["*", Create, Observe, Update, Delete, LateInitialize]
+                default: ["*"]
+              externalName:
+                type: string
+                description: Existing EKS cluster name to import.
+              clusterName:
+                type: string
+                description: EKS cluster name.
+              region:
+                type: string
+                description: AWS region for all managed resources.
+              accountId:
+                type: string
+                description: AWS account ID.
+              version:
+                type: string
+                description: Kubernetes version supported by EKS.
+              subnetIds:
+                type: array
+                description: Explicit private subnet IDs for the cluster and bootstrap capacity.
+                items:
+                  type: string
+              subnetSelector:
+                type: object
+                description: Label selector for subnet managed resources.
+                properties:
+                  matchLabels:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  matchControllerRef:
+                    type: boolean
+                    default: false
+              providerConfigRef:
+                type: object
+                description: AWS ProviderConfig reference.
+                properties:
+                  name:
+                    type: string
+                    default: default
+                  kind:
+                    type: string
+                    default: ProviderConfig
+              kubernetesProviderConfigRef:
+                type: object
+                description: Management-cluster Kubernetes ProviderConfig used to create child ProviderConfigs.
+                properties:
+                  name:
+                    type: string
+                    default: default
+                  kind:
+                    type: string
+                    default: ProviderConfig
+              labels:
+                type: object
+                description: Labels applied to Kubernetes resources.
+                additionalProperties:
+                  type: string
+                x-kubernetes-preserve-unknown-fields: true
+              tags:
+                type: object
+                description: Tags applied to AWS resources.
+                additionalProperties:
+                  type: string
+                x-kubernetes-preserve-unknown-fields: true
+              permissionsBoundary:
+                type: string
+                description: Optional IAM permissions boundary ARN for created roles.
+              privateAccess:
+                type: boolean
+                default: true
+              publicAccess:
+                type: boolean
+                default: false
+              encryptionEnabled:
+                type: boolean
+                default: true
+              adminRoleArn:
+                type: string
+                description: Optional IAM role ARN granted cluster-admin access.
+              kms:
+                type: object
+                properties:
+                  externalName:
+                    type: string
+                    description: Existing KMS key ID to import.
+              iam:
+                type: object
+                properties:
+                  controlPlaneRole:
+                    type: object
+                    properties:
+                      externalName:
+                        type: string
+                  nodeRole:
+                    type: object
+                    properties:
+                      externalName:
+                        type: string
+              oidc:
+                type: object
+                description: IAM OIDC provider settings for IRSA.
+                properties:
+                  enabled:
+                    type: boolean
+                    default: true
+                  externalName:
+                    type: string
+                    description: Existing OIDC provider ARN to import.
+              accessEntries:
+                type: array
+                description: Additional cluster access entries.
+                items:
+                  type: object
+                  required:
+                  - principalArn
+                  properties:
+                    principalArn:
+                      type: string
+                    type:
+                      type: string
+                      enum: [STANDARD, EC2_LINUX, EC2_WINDOWS, FARGATE_LINUX]
+                      default: STANDARD
+                    kubernetesGroups:
+                      type: array
+                      items:
+                        type: string
+                    accessPolicies:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                        - policyArn
+                        properties:
+                          policyArn:
+                            type: string
+                          accessScope:
+                            type: object
+                            properties:
+                              type:
+                                type: string
+                                enum: [cluster, namespace]
+                                default: cluster
+                              namespaces:
+                                type: array
+                                items:
+                                  type: string
+              fargate:
+                type: object
+                description: Bootstrap Fargate profile for Karpenter and CoreDNS.
+                properties:
+                  enabled:
+                    type: boolean
+                    default: true
+                  profileName:
+                    type: string
+                    default: bootstrap
+                  podExecutionRole:
+                    type: object
+                    properties:
+                      externalName:
+                        type: string
+                  selectors:
+                    type: array
+                    description: Fargate selectors. Defaults to Karpenter plus CoreDNS only.
+                    items:
+                      type: object
+                      required:
+                      - namespace
+                      properties:
+                        namespace:
+                          type: string
+                        labels:
+                          type: object
+                          additionalProperties:
+                            type: string
+              karpenter:
+                type: object
+                description: Karpenter controller and default EC2 capacity.
+                properties:
+                  enabled:
+                    type: boolean
+                    default: true
+                  namespace:
+                    type: string
+                    default: karpenter
+                  releaseName:
+                    type: string
+                    default: karpenter
+                  chartVersion:
+                    type: string
+                    default: "1.12.1"
+                  serviceAccountName:
+                    type: string
+                    default: karpenter
+                  values:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  overrideAllValues:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  irsa:
+                    type: object
+                    properties:
+                      role:
+                        type: object
+                        properties:
+                          externalName:
+                            type: string
+                      policy:
+                        type: object
+                        properties:
+                          externalName:
+                            type: string
+                  interruptionQueue:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: true
+                      name:
+                        type: string
+                      externalName:
+                        type: string
+                  nodeClasses:
+                    type: object
+                    properties:
+                      default:
+                        type: object
+                        properties:
+                          enabled:
+                            type: boolean
+                            default: true
+                          name:
+                            type: string
+                            default: hops-default
+                          amiFamily:
+                            type: string
+                            default: AL2023
+                          amiSelectorTerms:
+                            type: array
+                            items:
+                              type: object
+                              x-kubernetes-preserve-unknown-fields: true
+                          instanceStorePolicy:
+                            type: string
+                          userData:
+                            type: string
+                          blockDeviceMappings:
+                            type: array
+                            items:
+                              type: object
+                              x-kubernetes-preserve-unknown-fields: true
+                          metadataOptions:
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                      storageNvme:
+                        type: object
+                        properties:
+                          enabled:
+                            type: boolean
+                            default: false
+                          name:
+                            type: string
+                            default: hops-storage-nvme
+                          amiFamily:
+                            type: string
+                            default: AL2023
+                          amiSelectorTerms:
+                            type: array
+                            items:
+                              type: object
+                              x-kubernetes-preserve-unknown-fields: true
+                          instanceStorePolicy:
+                            type: string
+                          userData:
+                            type: string
+                          blockDeviceMappings:
+                            type: array
+                            items:
+                              type: object
+                              x-kubernetes-preserve-unknown-fields: true
+                          metadataOptions:
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                  nodePools:
+                    type: object
+                    properties:
+                      default:
+                        type: object
+                        properties:
+                          enabled:
+                            type: boolean
+                            default: true
+                          name:
+                            type: string
+                            default: hops-apps
+                          requirements:
+                            type: array
+                            items:
+                              type: object
+                              x-kubernetes-preserve-unknown-fields: true
+                          limits:
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          expireAfter:
+                            type: string
+                            default: 336h
+                          terminationGracePeriod:
+                            type: string
+                            default: 24h0m0s
+                          disruption:
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+              addons:
+                type: object
+                description: Cluster-owned EKS managed add-ons.
+                properties:
+                  vpcCni:
+                    type: object
+                    properties: {enabled: {type: boolean, default: true}, version: {type: string}, configurationValues: {type: string}}
+                  coredns:
+                    type: object
+                    properties: {enabled: {type: boolean, default: true}, version: {type: string}, configurationValues: {type: string}}
+                  kubeProxy:
+                    type: object
+                    properties: {enabled: {type: boolean, default: true}, version: {type: string}, configurationValues: {type: string}}
+                  podIdentityAgent:
+                    type: object
+                    properties: {enabled: {type: boolean, default: true}, version: {type: string}, configurationValues: {type: string}}
+                  ebsCsi:
+                    type: object
+                    properties: {enabled: {type: boolean, default: true}, version: {type: string}, configurationValues: {type: string}}
+              storage:
+                type: object
+                properties:
+                  defaultClass:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: true
+          status:
+            type: object
+            properties:
+              ready:
+                type: boolean
+              clusterEndpoint:
+                type: string
+              clusterSecurityGroupId:
+                type: string
+              subnetIds:
+                type: array
+                items:
+                  type: string
+              oidc:
+                type: string
+              controlPlaneStatus:
+                type: string
+              encryptionKeyArn:
+                type: string
+              iam:
+                type: object
+                properties:
+                  controlPlaneRole:
+                    type: object
+                    properties:
+                      arn:
+                        type: string
+                      name:
+                        type: string
+                  nodeRole:
+                    type: object
+                    properties:
+                      arn:
+                        type: string
+                      name:
+                        type: string
+                  fargateRole:
+                    type: object
+                    properties:
+                      arn:
+                        type: string
+                      name:
+                        type: string
+              karpenter:
+                type: object
+                properties:
+                  roleArn:
+                    type: string
+                  nodeClasses:
+                    type: object
+                    properties:
+                      default:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                      storageNvme:
+                        type: object
+                        properties:
+                          name:
+                            type: string

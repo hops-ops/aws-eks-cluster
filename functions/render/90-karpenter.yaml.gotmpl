@@ -1,0 +1,191 @@
+# code: language=yaml
+
+{{- $ec := $state.ekscluster }}
+{{- $obs := $state.observed }}
+
+{{- if $ec.render.karpenterNamespace }}
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  name: {{ $ec.cluster.name }}-karpenter-namespace
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "karpenter-namespace" }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: {{ $ec.karpenter.namespace }}
+        labels:
+          app.kubernetes.io/managed-by: crossplane
+          hops.ops.com.ai/ekscluster: {{ $ec.cluster.name }}
+  providerConfigRef:
+    name: {{ $ec.cluster.name }}
+    kind: ProviderConfig
+  readiness:
+    policy: DeriveFromCelQuery
+    celQuery: "has(object.metadata.uid)"
+{{- end }}
+
+{{- if $ec.render.karpenterHelm }}
+{{- $defaultValues := dict
+  "dnsPolicy" "ClusterFirst"
+  "settings" (dict
+    "clusterName" $ec.cluster.name
+    "clusterEndpoint" $obs.cluster.endpoint
+    "interruptionQueue" $ec.karpenter.queueName
+  )
+  "serviceAccount" (dict
+    "name" $ec.karpenter.serviceAccountName
+    "annotations" (dict "eks.amazonaws.com/role-arn" $obs.karpenterIrsa.roleArn)
+  )
+  "controller" (dict
+    "resources" (dict
+      "requests" (dict "cpu" "200m" "memory" "256Mi")
+      "limits" (dict "cpu" "1" "memory" "1Gi")
+    )
+  )
+}}
+{{- $values := mergeOverwrite $defaultValues ($ec.karpenter.values | default dict) }}
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  name: {{ $ec.cluster.name }}-karpenter
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "karpenter-release" }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    chart:
+      name: karpenter
+      repository: oci://public.ecr.aws/karpenter
+      version: {{ $ec.karpenter.chartVersion | quote }}
+    namespace: {{ $ec.karpenter.namespace }}
+    wait: true
+    {{- if gt (len $ec.karpenter.overrideAllValues) 0 }}
+    values:
+      {{- toYaml $ec.karpenter.overrideAllValues | nindent 6 }}
+    {{- else }}
+    values:
+      {{- toYaml $values | nindent 6 }}
+    {{- end }}
+  rollbackLimit: 3
+  providerConfigRef:
+    name: {{ $ec.cluster.name }}
+    kind: ProviderConfig
+{{- end }}
+
+{{- if $ec.render.karpenterCapacity }}
+{{- $nodeClassBase := dict
+  "role" $obs.nodeRole.name
+  "securityGroupSelectorTerms" (list (dict "id" $obs.cluster.securityGroupId))
+}}
+{{- if $ec.cluster.observedSubnetIds }}
+  {{- $_ := set $nodeClassBase "subnetSelectorTerms" (list) }}
+  {{- range $subnetId := $ec.cluster.observedSubnetIds }}
+    {{- $_ := set $nodeClassBase "subnetSelectorTerms" (append $nodeClassBase.subnetSelectorTerms (dict "id" $subnetId)) }}
+  {{- end }}
+{{- else }}
+  {{- $_ := set $nodeClassBase "subnetSelectorTerms" (list) }}
+  {{- range $subnetId := $ec.cluster.subnetIds }}
+    {{- $_ := set $nodeClassBase "subnetSelectorTerms" (append $nodeClassBase.subnetSelectorTerms (dict "id" $subnetId)) }}
+  {{- end }}
+{{- end }}
+
+{{- range $class := list $ec.karpenter.nodeClasses.default $ec.karpenter.nodeClasses.storageNvme }}
+{{- if $class.enabled }}
+{{- $classSpec := mergeOverwrite (deepCopy $nodeClassBase) (dict
+  "amiFamily" $class.amiFamily
+  "tags" (merge (dict
+    "Name" (printf "%s-%s" $ec.cluster.name $class.name)
+  ) $ec.tags)
+) }}
+{{- if $class.amiSelectorTerms }}
+  {{- $_ := set $classSpec "amiSelectorTerms" $class.amiSelectorTerms }}
+{{- else }}
+  {{- $_ := set $classSpec "amiSelectorTerms" (list (dict "alias" "al2023@latest")) }}
+{{- end }}
+{{- if $class.instanceStorePolicy }}
+  {{- $_ := set $classSpec "instanceStorePolicy" $class.instanceStorePolicy }}
+{{- end }}
+{{- if $class.userData }}
+  {{- $_ := set $classSpec "userData" $class.userData }}
+{{- end }}
+{{- if $class.blockDeviceMappings }}
+  {{- $_ := set $classSpec "blockDeviceMappings" $class.blockDeviceMappings }}
+{{- end }}
+{{- if $class.metadataOptions }}
+  {{- $_ := set $classSpec "metadataOptions" $class.metadataOptions }}
+{{- end }}
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  name: {{ $ec.cluster.name }}-{{ $class.name }}
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "ec2-nodeclass-%s" $class.name) }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    manifest:
+      apiVersion: karpenter.k8s.aws/v1
+      kind: EC2NodeClass
+      metadata:
+        name: {{ $class.name }}
+      spec:
+        {{- toYaml $classSpec | nindent 8 }}
+  providerConfigRef:
+    name: {{ $ec.cluster.name }}
+    kind: ProviderConfig
+{{- end }}
+{{- end }}
+
+{{- if $ec.karpenter.nodePools.default.enabled }}
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  name: {{ $ec.cluster.name }}-{{ $ec.karpenter.nodePools.default.name }}
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "nodepool-default" }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    manifest:
+      apiVersion: karpenter.sh/v1
+      kind: NodePool
+      metadata:
+        name: {{ $ec.karpenter.nodePools.default.name }}
+      spec:
+        disruption:
+          {{- toYaml $ec.karpenter.nodePools.default.disruption | nindent 10 }}
+        template:
+          metadata:
+            labels:
+              karpenter/nodepool: {{ $ec.karpenter.nodePools.default.name }}
+          spec:
+            expireAfter: {{ $ec.karpenter.nodePools.default.expireAfter }}
+            nodeClassRef:
+              group: karpenter.k8s.aws
+              kind: EC2NodeClass
+              name: {{ $ec.karpenter.nodeClasses.default.name }}
+            requirements:
+              {{- toYaml $ec.karpenter.nodePools.default.requirements | nindent 14 }}
+            terminationGracePeriod: {{ $ec.karpenter.nodePools.default.terminationGracePeriod }}
+        {{- if $ec.karpenter.nodePools.default.limits }}
+        limits:
+          {{- toYaml $ec.karpenter.nodePools.default.limits | nindent 10 }}
+        {{- end }}
+  providerConfigRef:
+    name: {{ $ec.cluster.name }}
+    kind: ProviderConfig
+{{- end }}
+{{- end }}

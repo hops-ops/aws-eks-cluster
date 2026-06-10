@@ -1,0 +1,288 @@
+apiVersion: iam.aws.m.upbound.io/v1beta1
+kind: Role
+metadata:
+  name: standard-controlplane
+  annotations:
+    crossplane.io/composition-resource-name: iam-role-controlplane
+    gotemplating.fn.crossplane.io/composition-resource-name: iam-role-controlplane
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  atProvider:
+    arn: arn:aws:iam::123456789012:role/standard-controlplane
+    id: standard-controlplane
+    name: standard-controlplane
+---
+apiVersion: iam.aws.m.upbound.io/v1beta1
+kind: Role
+metadata:
+  name: standard-node
+  annotations:
+    crossplane.io/composition-resource-name: iam-role-node
+    gotemplating.fn.crossplane.io/composition-resource-name: iam-role-node
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  atProvider:
+    arn: arn:aws:iam::123456789012:role/standard-node
+    id: standard-node
+    name: standard-node
+---
+apiVersion: iam.aws.m.upbound.io/v1beta1
+kind: Role
+metadata:
+  name: standard-fargate
+  annotations:
+    crossplane.io/composition-resource-name: iam-role-fargate
+    gotemplating.fn.crossplane.io/composition-resource-name: iam-role-fargate
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  atProvider:
+    arn: arn:aws:iam::123456789012:role/standard-fargate
+    id: standard-fargate
+    name: standard-fargate
+---
+apiVersion: kms.aws.m.upbound.io/v1beta1
+kind: Key
+metadata:
+  name: standard-secrets
+  annotations:
+    crossplane.io/composition-resource-name: kms-key
+    gotemplating.fn.crossplane.io/composition-resource-name: kms-key
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  atProvider:
+    arn: arn:aws:kms:us-east-2:123456789012:key/12345678-1234-1234-1234-123456789012
+    keyId: 12345678-1234-1234-1234-123456789012
+---
+apiVersion: sqs.aws.m.upbound.io/v1beta1
+kind: Queue
+metadata:
+  name: standard-karpenter
+  annotations:
+    crossplane.io/composition-resource-name: karpenter-queue
+    gotemplating.fn.crossplane.io/composition-resource-name: karpenter-queue
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  atProvider:
+    arn: arn:aws:sqs:us-east-2:123456789012:standard
+    url: https://sqs.us-east-2.amazonaws.com/123456789012/standard
+---
+apiVersion: eks.aws.m.upbound.io/v1beta1
+kind: Cluster
+metadata:
+  name: standard
+  annotations:
+    crossplane.io/composition-resource-name: cluster
+    gotemplating.fn.crossplane.io/composition-resource-name: cluster
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+    reason: Available
+  atProvider:
+    arn: arn:aws:eks:us-east-2:123456789012:cluster/standard
+    endpoint: https://ABCDEF1234567890.gr7.us-east-2.eks.amazonaws.com
+    id: standard
+    identity:
+    - oidc:
+      - issuer: https://oidc.eks.us-east-2.amazonaws.com/id/ABCDEF1234567890
+    status: ACTIVE
+    vpcConfig:
+      clusterSecurityGroupId: sg-0123456789abcdef0
+      subnetIds:
+      - subnet-0000000000000000a
+      - subnet-0000000000000000b
+---
+apiVersion: eks.aws.m.upbound.io/v1beta1
+kind: ClusterAuth
+metadata:
+  name: standard
+  annotations:
+    crossplane.io/composition-resource-name: cluster-auth
+    gotemplating.fn.crossplane.io/composition-resource-name: cluster-auth
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+---
+apiVersion: iam.aws.m.upbound.io/v1beta1
+kind: OpenIDConnectProvider
+metadata:
+  name: standard
+  annotations:
+    crossplane.io/composition-resource-name: oidc-provider
+    gotemplating.fn.crossplane.io/composition-resource-name: oidc-provider
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  atProvider:
+    arn: arn:aws:iam::123456789012:oidc-provider/oidc.eks.us-east-2.amazonaws.com/id/ABCDEF1234567890
+---
+apiVersion: eks.aws.m.upbound.io/v1beta1
+kind: FargateProfile
+metadata:
+  name: standard-bootstrap
+  annotations:
+    crossplane.io/composition-resource-name: fargate-profile
+    gotemplating.fn.crossplane.io/composition-resource-name: fargate-profile
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  atProvider:
+    arn: arn:aws:eks:us-east-2:123456789012:fargateprofile/standard/bootstrap/1234567890
+    id: standard:bootstrap
+---
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: IRSA
+metadata:
+  name: standard-karpenter
+  annotations:
+    crossplane.io/composition-resource-name: karpenter-irsa
+    gotemplating.fn.crossplane.io/composition-resource-name: karpenter-irsa
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  role:
+    arn: arn:aws:iam::123456789012:role/standard-karpenter
+    name: standard-karpenter
+---
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: IRSA
+metadata:
+  name: standard-ebs-csi
+  annotations:
+    crossplane.io/composition-resource-name: ebs-csi-irsa
+    gotemplating.fn.crossplane.io/composition-resource-name: ebs-csi-irsa
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  role:
+    arn: arn:aws:iam::123456789012:role/standard-ebs-csi
+    name: standard-ebs-csi
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  name: standard-karpenter-namespace
+  annotations:
+    crossplane.io/composition-resource-name: karpenter-namespace
+    gotemplating.fn.crossplane.io/composition-resource-name: karpenter-namespace
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+---
+apiVersion: eks.aws.m.upbound.io/v1beta1
+kind: Addon
+metadata:
+  name: standard-coredns
+  annotations:
+    crossplane.io/composition-resource-name: addon-coredns
+    gotemplating.fn.crossplane.io/composition-resource-name: addon-coredns
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  atProvider:
+    arn: arn:aws:eks:us-east-2:123456789012:addon/standard/coredns/1234567890
+    id: standard:coredns
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  name: standard-karpenter
+  annotations:
+    crossplane.io/composition-resource-name: karpenter-release
+    gotemplating.fn.crossplane.io/composition-resource-name: karpenter-release
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  atProvider:
+    releaseDescription: Install complete
+    revision: 1
+    state: deployed
+---
+apiVersion: cloudwatchevents.aws.m.upbound.io/v1beta1
+kind: Rule
+metadata:
+  name: standard-karpenter-spot-interruption
+  annotations:
+    crossplane.io/composition-resource-name: karpenter-rule-spot-interruption
+    gotemplating.fn.crossplane.io/composition-resource-name: karpenter-rule-spot-interruption
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  atProvider:
+    id: default/standard-karpenter-spot-interruption
+---
+apiVersion: cloudwatchevents.aws.m.upbound.io/v1beta1
+kind: Rule
+metadata:
+  name: standard-karpenter-rebalance
+  annotations:
+    crossplane.io/composition-resource-name: karpenter-rule-rebalance
+    gotemplating.fn.crossplane.io/composition-resource-name: karpenter-rule-rebalance
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  atProvider:
+    id: default/standard-karpenter-rebalance
+---
+apiVersion: cloudwatchevents.aws.m.upbound.io/v1beta1
+kind: Rule
+metadata:
+  name: standard-karpenter-instance-state-change
+  annotations:
+    crossplane.io/composition-resource-name: karpenter-rule-instance-state-change
+    gotemplating.fn.crossplane.io/composition-resource-name: karpenter-rule-instance-state-change
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  atProvider:
+    id: default/standard-karpenter-instance-state-change
+---
+apiVersion: cloudwatchevents.aws.m.upbound.io/v1beta1
+kind: Rule
+metadata:
+  name: standard-karpenter-scheduled-change
+  annotations:
+    crossplane.io/composition-resource-name: karpenter-rule-scheduled-change
+    gotemplating.fn.crossplane.io/composition-resource-name: karpenter-rule-scheduled-change
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  atProvider:
+    id: default/standard-karpenter-scheduled-change
+---
+apiVersion: eks.aws.m.upbound.io/v1beta1
+kind: Addon
+metadata:
+  name: standard-ebs-csi
+  annotations:
+    crossplane.io/composition-resource-name: addon-ebs-csi
+    gotemplating.fn.crossplane.io/composition-resource-name: addon-ebs-csi
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  atProvider:
+    arn: arn:aws:eks:us-east-2:123456789012:addon/standard/aws-ebs-csi-driver/1234567890
+    id: standard:aws-ebs-csi-driver

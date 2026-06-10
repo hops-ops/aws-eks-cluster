@@ -1,0 +1,168 @@
+# code: language=yaml
+# Cluster Auth and Provider Configs
+
+{{ $ec := $state.ekscluster }}
+{{ $obs := $state.observed }}
+
+{{ if $ec.render.clusterAuth }}
+---
+apiVersion: eks.aws.m.upbound.io/v1beta1
+kind: ClusterAuth
+metadata:
+  name: {{ $ec.cluster.name }}
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "cluster-auth" }}
+spec:
+  forProvider:
+    clusterName: {{ $ec.cluster.name }}
+    region: {{ $ec.cluster.region }}
+  writeConnectionSecretToRef:
+    name: {{ $ec.cluster.name }}
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+
+# ==============================================================================
+# Usage: Delete ClusterAuth before Cluster
+# ==============================================================================
+{{ if and $obs.cluster.ready $obs.clusterAuth.ready }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-cluster-auth-before-cluster
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-cluster-auth-before-cluster" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: Cluster
+    resourceRef:
+      name: {{ $ec.cluster.name }}
+  by:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: ClusterAuth
+    resourceRef:
+      name: {{ $ec.cluster.name }}
+{{ end }}
+{{ end }}
+
+{{ if $ec.render.providerConfigs }}
+# Kubernetes ProviderConfig (wrapped in Object for proper lifecycle)
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  name: {{ $ec.cluster.name }}-k8s-provider-config
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "k8s-provider-config" }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    manifest:
+      apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: ProviderConfig
+      metadata:
+        name: {{ $ec.cluster.name }}
+        namespace: {{ $ec.namespace }}
+      spec:
+        credentials:
+          secretRef:
+            key: kubeconfig
+            name: {{ $ec.cluster.name }}
+            namespace: {{ $ec.namespace }}
+          source: Secret
+  providerConfigRef:
+    name: {{ $ec.kubernetesProviderConfig.name }}
+    kind: {{ $ec.kubernetesProviderConfig.kind }}
+  readiness:
+    policy: DeriveFromCelQuery
+    celQuery: "has(object.metadata.uid)"
+
+# Helm ProviderConfig (wrapped in Object for proper lifecycle)
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  name: {{ $ec.cluster.name }}-helm-provider-config
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "helm-provider-config" }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    manifest:
+      apiVersion: helm.m.crossplane.io/v1beta1
+      kind: ProviderConfig
+      metadata:
+        name: {{ $ec.cluster.name }}
+        namespace: {{ $ec.namespace }}
+      spec:
+        credentials:
+          secretRef:
+            key: kubeconfig
+            name: {{ $ec.cluster.name }}
+            namespace: {{ $ec.namespace }}
+          source: Secret
+  providerConfigRef:
+    name: {{ $ec.kubernetesProviderConfig.name }}
+    kind: {{ $ec.kubernetesProviderConfig.kind }}
+
+# ==============================================================================
+# Usages: Delete ProviderConfig Objects before ClusterAuth
+# ==============================================================================
+{{ $k8sProviderConfigReady := get $obs._readiness "k8s-provider-config" | default false }}
+{{ $helmProviderConfigReady := get $obs._readiness "helm-provider-config" | default false }}
+
+# Delete Kubernetes ProviderConfig Object before ClusterAuth
+{{ if and $k8sProviderConfigReady $obs.clusterAuth.ready }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-k8s-pc-before-cluster-auth
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-k8s-pc-before-cluster-auth" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: ClusterAuth
+    resourceRef:
+      name: {{ $ec.cluster.name }}
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: {{ $ec.cluster.name }}-k8s-provider-config
+{{ end }}
+
+# Delete Helm ProviderConfig Object before ClusterAuth
+{{ if and $helmProviderConfigReady $obs.clusterAuth.ready }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-helm-pc-before-cluster-auth
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-helm-pc-before-cluster-auth" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: ClusterAuth
+    resourceRef:
+      name: {{ $ec.cluster.name }}
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: {{ $ec.cluster.name }}-helm-provider-config
+{{ end }}
+{{ end }}

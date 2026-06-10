@@ -1,0 +1,146 @@
+# code: language=yaml
+
+{{- $ec := $state.ekscluster }}
+{{- $obs := $state.observed }}
+{{- $readiness := $obs._readiness }}
+
+{{- if $ec.render.accessEntries }}
+---
+apiVersion: eks.aws.m.upbound.io/v1beta1
+kind: AccessEntry
+metadata:
+  name: {{ $ec.cluster.name }}-node-access
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "access-entry-node" }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    clusterName: {{ $ec.cluster.name }}
+    principalArnFromRoleRef:
+      name: {{ $ec.iam.nodeRoleName }}
+    region: {{ $ec.cluster.region }}
+    type: EC2_LINUX
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+
+{{- if $ec.render.defaultAdmin }}
+---
+apiVersion: eks.aws.m.upbound.io/v1beta1
+kind: AccessEntry
+metadata:
+  name: {{ $ec.cluster.name }}-default-admin
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "access-entry-default-admin" }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    clusterName: {{ $ec.cluster.name }}
+    principalArn: {{ $ec.adminRoleArn }}
+    region: {{ $ec.cluster.region }}
+    type: STANDARD
+    kubernetesGroups:
+    - cluster-admin
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+
+---
+apiVersion: eks.aws.m.upbound.io/v1beta1
+kind: AccessPolicyAssociation
+metadata:
+  name: {{ $ec.cluster.name }}-default-admin-policy
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "access-policy-default-admin" }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    accessScope:
+      type: cluster
+    clusterName: {{ $ec.cluster.name }}
+    policyArn: arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy
+    principalArn: {{ $ec.adminRoleArn }}
+    region: {{ $ec.cluster.region }}
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+{{- end }}
+
+{{- range $i, $entry := $ec.accessEntries }}
+{{- $entryName := printf "%s-custom-%d" $ec.cluster.name $i }}
+---
+apiVersion: eks.aws.m.upbound.io/v1beta1
+kind: AccessEntry
+metadata:
+  name: {{ $entryName }}
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "access-entry-custom-%d" $i) }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    clusterName: {{ $ec.cluster.name }}
+    principalArn: {{ $entry.principalArn }}
+    region: {{ $ec.cluster.region }}
+    type: {{ $entry.type | default "STANDARD" }}
+    {{- if $entry.kubernetesGroups }}
+    kubernetesGroups: {{ $entry.kubernetesGroups | toJson }}
+    {{- end }}
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+
+{{- range $j, $policy := $entry.accessPolicies | default list }}
+{{- $policyName := printf "%s-custom-%d-policy-%d" $ec.cluster.name $i $j }}
+---
+apiVersion: eks.aws.m.upbound.io/v1beta1
+kind: AccessPolicyAssociation
+metadata:
+  name: {{ $policyName }}
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "access-policy-custom-%d-%d" $i $j) }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    accessScope:
+      type: {{ (($policy.accessScope | default dict).type | default "cluster") }}
+      {{- if (($policy.accessScope | default dict).namespaces) }}
+      namespaces: {{ ($policy.accessScope).namespaces | toJson }}
+      {{- end }}
+    clusterName: {{ $ec.cluster.name }}
+    policyArn: {{ $policy.policyArn }}
+    principalArn: {{ $entry.principalArn }}
+    region: {{ $ec.cluster.region }}
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+{{- end }}
+{{- end }}
+
+{{- if and $obs.nodeRole.ready (get $readiness "access-entry-node") }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-access-entry-node-before-node-role
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-access-entry-node-before-node-role" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: iam.aws.m.upbound.io/v1beta1
+    kind: Role
+    resourceRef:
+      name: {{ $ec.iam.nodeRoleName }}
+  by:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: AccessEntry
+    resourceRef:
+      name: {{ $ec.cluster.name }}-node-access
+{{- end }}
+{{- end }}

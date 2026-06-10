@@ -1,0 +1,39 @@
+# code: language=yaml
+#
+# Set $state.observed KMS and clusterAuth from atProvider values
+# Depends on: 001-state-observed-cluster.yaml.gotmpl ($state.observed._readiness, $state.observed._raw)
+#
+
+{{- $raw := $state.observed._raw }}
+{{- $readiness := $state.observed._readiness }}
+
+# ==============================================================================
+# KMS Key
+# ==============================================================================
+{{- $kmsEntry := get $raw "kms-key" | default dict }}
+{{- $kmsResource := $kmsEntry.resource | default dict }}
+{{- $kmsStatus := $kmsResource.status | default dict }}
+{{- $kmsAtProvider := $kmsStatus.atProvider | default dict }}
+
+{{- $kmsReady := get $readiness "kms-key" | default false }}
+{{- $kmsArn := $kmsAtProvider.arn | default "" }}
+{{- $kmsKeyId := $kmsAtProvider.keyId | default "" }}
+
+# ==============================================================================
+# Cluster Auth (ProviderConfig for kubernetes provider)
+# ==============================================================================
+{{- $clusterAuthReady := get $readiness "cluster-auth" | default false }}
+
+# ==============================================================================
+# Set $state.observed KMS and clusterAuth values
+# ==============================================================================
+{{- $state = set $state "observed" (merge $state.observed (dict
+  "kms" (dict
+    "ready" $kmsReady
+    "arn" $kmsArn
+    "keyId" $kmsKeyId
+  )
+  "clusterAuth" (dict
+    "ready" $clusterAuthReady
+  )
+)) }}

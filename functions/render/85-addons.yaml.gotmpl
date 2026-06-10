@@ -1,0 +1,50 @@
+# code: language=yaml
+
+{{- $ec := $state.ekscluster }}
+{{- $obs := $state.observed }}
+
+{{- if $ec.render.addons }}
+{{- $addons := list
+  (dict "key" "vpcCni" "resource" "vpc-cni" "addonName" "vpc-cni")
+  (dict "key" "coredns" "resource" "coredns" "addonName" "coredns")
+  (dict "key" "kubeProxy" "resource" "kube-proxy" "addonName" "kube-proxy")
+  (dict "key" "podIdentityAgent" "resource" "pod-identity-agent" "addonName" "eks-pod-identity-agent")
+  (dict "key" "ebsCsi" "resource" "ebs-csi" "addonName" "aws-ebs-csi-driver")
+}}
+{{- range $addon := $addons }}
+{{- $cfg := get $ec.addons $addon.key }}
+{{- $hasEbsRole := or (ne $addon.key "ebsCsi") (ne ($obs.ebsCsiIrsa.roleArn | default "") "") }}
+{{- $hasFargateProfile := or (ne $addon.key "coredns") (or (not $ec.fargate.enabled) (ne ($obs.fargateProfile.id | default "") "")) }}
+{{- if and $cfg.enabled $hasEbsRole $hasFargateProfile }}
+---
+apiVersion: eks.aws.m.upbound.io/v1beta1
+kind: Addon
+metadata:
+  name: {{ $ec.cluster.name }}-{{ $addon.resource }}
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "addon-%s" $addon.resource) }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    addonName: {{ $addon.addonName }}
+    {{- if $cfg.version }}
+    addonVersion: {{ $cfg.version | quote }}
+    {{- end }}
+    clusterName: {{ $ec.cluster.name }}
+    {{- if $cfg.configurationValues }}
+    configurationValues: {{ $cfg.configurationValues | quote }}
+    {{- end }}
+    {{- if and (eq $addon.key "ebsCsi") (ne ($obs.ebsCsiIrsa.roleArn | default "") "") }}
+    serviceAccountRoleArn: {{ $obs.ebsCsiIrsa.roleArn }}
+    {{- end }}
+    region: {{ $ec.cluster.region }}
+    resolveConflictsOnCreate: OVERWRITE
+    resolveConflictsOnUpdate: OVERWRITE
+    tags: {{ merge (dict "Name" (printf "%s-%s" $ec.cluster.name $addon.resource)) $ec.tags | toJson }}
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+{{- end }}
+{{- end }}
+{{- end }}

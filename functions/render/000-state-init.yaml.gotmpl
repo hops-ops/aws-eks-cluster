@@ -1,0 +1,227 @@
+# code: language=yaml
+
+{{- $xr := getCompositeResource . }}
+{{- $metadata := $xr.metadata | default dict }}
+{{- $spec := $xr.spec | default dict }}
+{{- $name := $metadata.name | default "" }}
+{{- $namespace := $metadata.namespace | default "default" }}
+
+{{- $defaults := dict
+  "hops.ops.com.ai/managed" "true"
+  (printf "hops.ops.com.ai/%s" (lower $xr.kind)) $name
+}}
+{{- $labels := merge (dict) $defaults ($spec.labels | default dict) }}
+{{- $tags := merge (dict) $defaults ($spec.tags | default dict) }}
+
+{{- $providerConfigRef := $spec.providerConfigRef | default dict }}
+{{- $kubernetesProviderConfigRef := $spec.kubernetesProviderConfigRef | default dict }}
+{{- $subnetSelector := $spec.subnetSelector | default dict }}
+{{- $iam := $spec.iam | default dict }}
+{{- $kms := $spec.kms | default dict }}
+{{- $oidc := $spec.oidc | default dict }}
+{{- $fargate := $spec.fargate | default dict }}
+{{- $karpenter := $spec.karpenter | default dict }}
+{{- $storage := $spec.storage | default dict }}
+{{- $addons := $spec.addons | default dict }}
+
+{{- $privateAccess := true }}
+{{- if hasKey $spec "privateAccess" }}
+  {{- $privateAccess = $spec.privateAccess }}
+{{- end }}
+{{- $publicAccess := false }}
+{{- if hasKey $spec "publicAccess" }}
+  {{- $publicAccess = $spec.publicAccess }}
+{{- end }}
+{{- $encryptionEnabled := true }}
+{{- if hasKey $spec "encryptionEnabled" }}
+  {{- $encryptionEnabled = $spec.encryptionEnabled }}
+{{- end }}
+
+{{- $defaultStorageClass := $storage.defaultClass | default dict }}
+{{- $defaultStorageClassEnabled := true }}
+{{- if hasKey $defaultStorageClass "enabled" }}
+  {{- $defaultStorageClassEnabled = $defaultStorageClass.enabled }}
+{{- end }}
+
+{{- $oidcEnabled := true }}
+{{- if hasKey $oidc "enabled" }}
+  {{- $oidcEnabled = $oidc.enabled }}
+{{- end }}
+
+{{- $fargateEnabled := true }}
+{{- if hasKey $fargate "enabled" }}
+  {{- $fargateEnabled = $fargate.enabled }}
+{{- end }}
+{{- $fargateSelectors := $fargate.selectors | default (list
+  (dict "namespace" ($karpenter.namespace | default "karpenter"))
+  (dict "namespace" "kube-system" "labels" (dict "k8s-app" "kube-dns"))
+) }}
+
+{{- $karpenterEnabled := true }}
+{{- if hasKey $karpenter "enabled" }}
+  {{- $karpenterEnabled = $karpenter.enabled }}
+{{- end }}
+{{- $karpenterNamespace := $karpenter.namespace | default "karpenter" }}
+{{- $karpenterReleaseName := $karpenter.releaseName | default "karpenter" }}
+{{- $karpenterServiceAccount := $karpenter.serviceAccountName | default "karpenter" }}
+{{- $karpenterQueue := $karpenter.interruptionQueue | default dict }}
+{{- $karpenterQueueEnabled := true }}
+{{- if hasKey $karpenterQueue "enabled" }}
+  {{- $karpenterQueueEnabled = $karpenterQueue.enabled }}
+{{- end }}
+
+{{- $nodeClasses := $karpenter.nodeClasses | default dict }}
+{{- $defaultNodeClass := $nodeClasses.default | default dict }}
+{{- $storageNodeClass := $nodeClasses.storageNvme | default dict }}
+{{- $defaultNodeClassEnabled := true }}
+{{- if hasKey $defaultNodeClass "enabled" }}
+  {{- $defaultNodeClassEnabled = $defaultNodeClass.enabled }}
+{{- end }}
+{{- $storageNodeClassEnabled := false }}
+{{- if hasKey $storageNodeClass "enabled" }}
+  {{- $storageNodeClassEnabled = $storageNodeClass.enabled }}
+{{- end }}
+
+{{- $nodePools := $karpenter.nodePools | default dict }}
+{{- $defaultNodePool := $nodePools.default | default dict }}
+{{- $defaultNodePoolEnabled := true }}
+{{- if hasKey $defaultNodePool "enabled" }}
+  {{- $defaultNodePoolEnabled = $defaultNodePool.enabled }}
+{{- end }}
+
+{{- $defaultRequirements := list
+  (dict "key" "karpenter.sh/capacity-type" "operator" "In" "values" (list "spot"))
+  (dict "key" "karpenter.k8s.aws/instance-category" "operator" "In" "values" (list "c" "m" "r" "t"))
+  (dict "key" "karpenter.k8s.aws/instance-generation" "operator" "Gte" "values" (list "4"))
+  (dict "key" "kubernetes.io/os" "operator" "In" "values" (list "linux"))
+}}
+{{- $defaultDisruption := dict
+  "consolidationPolicy" "WhenEmptyOrUnderutilized"
+  "consolidateAfter" "30s"
+  "budgets" (list (dict "nodes" "100%"))
+}}
+
+{{- $addonDefaults := dict
+  "vpcCni" (dict "enabled" true)
+  "coredns" (dict "enabled" true "configurationValues" "{\"computeType\":\"Fargate\"}")
+  "kubeProxy" (dict "enabled" true)
+  "podIdentityAgent" (dict "enabled" true)
+  "ebsCsi" (dict "enabled" true)
+}}
+{{- $effectiveAddons := dict }}
+{{- range $key, $defaults := $addonDefaults }}
+  {{- $raw := get $addons $key | default dict }}
+  {{- $enabled := $defaults.enabled }}
+  {{- if hasKey $raw "enabled" }}
+    {{- $enabled = $raw.enabled }}
+  {{- end }}
+  {{- $effectiveAddons = set $effectiveAddons $key (dict
+    "enabled" $enabled
+    "version" ($raw.version | default "")
+    "configurationValues" ($raw.configurationValues | default ($defaults.configurationValues | default ""))
+  ) }}
+{{- end }}
+
+{{- $effective := dict
+  "name" $name
+  "namespace" $namespace
+  "clusterName" $spec.clusterName
+  "region" $spec.region
+  "accountId" $spec.accountId
+  "version" $spec.version
+  "subnetIds" ($spec.subnetIds | default list)
+  "subnetSelector" (dict
+    "matchLabels" ($subnetSelector.matchLabels | default dict)
+    "matchControllerRef" ($subnetSelector.matchControllerRef | default false)
+  )
+  "providerConfigRef" (dict
+    "name" ($providerConfigRef.name | default "default")
+    "kind" ($providerConfigRef.kind | default "ProviderConfig")
+  )
+  "kubernetesProviderConfigRef" (dict
+    "name" ($kubernetesProviderConfigRef.name | default "default")
+    "kind" ($kubernetesProviderConfigRef.kind | default "ProviderConfig")
+  )
+  "labels" $labels
+  "tags" $tags
+  "permissionsBoundary" ($spec.permissionsBoundary | default "")
+  "privateAccess" $privateAccess
+  "publicAccess" $publicAccess
+  "encryptionEnabled" $encryptionEnabled
+  "managementPolicies" ($spec.managementPolicies | default (list "*"))
+  "externalName" ($spec.externalName | default "")
+  "adminRoleArn" ($spec.adminRoleArn | default "")
+  "accessEntries" ($spec.accessEntries | default list)
+  "kms" (dict "externalName" ($kms.externalName | default ""))
+  "iam" (dict
+    "controlPlaneRole" (dict "externalName" (($iam.controlPlaneRole | default dict).externalName | default ""))
+    "nodeRole" (dict "externalName" (($iam.nodeRole | default dict).externalName | default ""))
+  )
+  "oidc" (dict
+    "enabled" $oidcEnabled
+    "externalName" ($oidc.externalName | default "")
+  )
+  "fargate" (dict
+    "enabled" $fargateEnabled
+    "profileName" ($fargate.profileName | default "bootstrap")
+    "selectors" $fargateSelectors
+    "podExecutionRole" (dict "externalName" (($fargate.podExecutionRole | default dict).externalName | default ""))
+  )
+  "karpenter" (dict
+    "enabled" $karpenterEnabled
+    "namespace" $karpenterNamespace
+    "releaseName" $karpenterReleaseName
+    "chartVersion" ($karpenter.chartVersion | default "1.12.1")
+    "serviceAccountName" $karpenterServiceAccount
+    "values" ($karpenter.values | default dict)
+    "overrideAllValues" ($karpenter.overrideAllValues | default dict)
+    "irsa" ($karpenter.irsa | default dict)
+    "interruptionQueue" (dict
+      "enabled" $karpenterQueueEnabled
+      "name" ($karpenterQueue.name | default $spec.clusterName)
+      "externalName" ($karpenterQueue.externalName | default "")
+    )
+    "nodeClasses" (dict
+      "default" (merge (dict
+        "enabled" $defaultNodeClassEnabled
+        "name" ($defaultNodeClass.name | default "hops-default")
+        "amiFamily" ($defaultNodeClass.amiFamily | default "AL2023")
+        "amiSelectorTerms" ($defaultNodeClass.amiSelectorTerms | default list)
+        "instanceStorePolicy" ($defaultNodeClass.instanceStorePolicy | default "")
+        "userData" ($defaultNodeClass.userData | default "")
+        "blockDeviceMappings" ($defaultNodeClass.blockDeviceMappings | default list)
+        "metadataOptions" ($defaultNodeClass.metadataOptions | default dict)
+      ) dict)
+      "storageNvme" (merge (dict
+        "enabled" $storageNodeClassEnabled
+        "name" ($storageNodeClass.name | default "hops-storage-nvme")
+        "amiFamily" ($storageNodeClass.amiFamily | default "AL2023")
+        "amiSelectorTerms" ($storageNodeClass.amiSelectorTerms | default list)
+        "instanceStorePolicy" ($storageNodeClass.instanceStorePolicy | default "")
+        "userData" ($storageNodeClass.userData | default "")
+        "blockDeviceMappings" ($storageNodeClass.blockDeviceMappings | default list)
+        "metadataOptions" ($storageNodeClass.metadataOptions | default dict)
+      ) dict)
+    )
+    "nodePools" (dict
+      "default" (dict
+        "enabled" $defaultNodePoolEnabled
+        "name" ($defaultNodePool.name | default "hops-apps")
+        "requirements" ($defaultNodePool.requirements | default $defaultRequirements)
+        "limits" ($defaultNodePool.limits | default dict)
+        "expireAfter" ($defaultNodePool.expireAfter | default "336h")
+        "terminationGracePeriod" ($defaultNodePool.terminationGracePeriod | default "24h0m0s")
+        "disruption" ($defaultNodePool.disruption | default $defaultDisruption)
+      )
+    )
+  )
+  "addons" $effectiveAddons
+  "storage" (dict "defaultClass" (dict "enabled" $defaultStorageClassEnabled))
+}}
+
+{{- $state := dict
+  "spec" (dict "raw" $spec "effective" $effective)
+  "observed" dict
+  "ekscluster" dict
+  "status" dict
+}}

@@ -1,0 +1,81 @@
+# code: language=yaml
+
+{{- $raw := $state.observed._raw }}
+{{- $readiness := $state.observed._readiness }}
+
+{{- $oidcEntry := get $raw "oidc-provider" | default dict }}
+{{- $oidcStatus := (($oidcEntry.resource | default dict).status | default dict) }}
+{{- $oidcAtProvider := $oidcStatus.atProvider | default dict }}
+
+{{- $fargateEntry := get $raw "fargate-profile" | default dict }}
+{{- $fargateStatus := (($fargateEntry.resource | default dict).status | default dict) }}
+{{- $fargateAtProvider := $fargateStatus.atProvider | default dict }}
+
+{{- $karpenterIrsaEntry := get $raw "karpenter-irsa" | default dict }}
+{{- $karpenterIrsaStatus := (($karpenterIrsaEntry.resource | default dict).status | default dict) }}
+{{- $karpenterIrsaRole := $karpenterIrsaStatus.role | default dict }}
+
+{{- $ebsCsiIrsaEntry := get $raw "ebs-csi-irsa" | default dict }}
+{{- $ebsCsiIrsaStatus := (($ebsCsiIrsaEntry.resource | default dict).status | default dict) }}
+{{- $ebsCsiIrsaRole := $ebsCsiIrsaStatus.role | default dict }}
+
+{{- $releaseEntry := get $raw "karpenter-release" | default dict }}
+{{- $releaseStatus := (($releaseEntry.resource | default dict).status | default dict) }}
+{{- $releaseAtProvider := $releaseStatus.atProvider | default dict }}
+
+{{- $queueEntry := get $raw "karpenter-queue" | default dict }}
+{{- $queueStatus := (($queueEntry.resource | default dict).status | default dict) }}
+{{- $queueAtProvider := $queueStatus.atProvider | default dict }}
+
+{{- $addons := dict }}
+{{- range $item := list
+  (dict "resource" "vpc-cni" "key" "vpcCni")
+  (dict "resource" "coredns" "key" "coredns")
+  (dict "resource" "kube-proxy" "key" "kubeProxy")
+  (dict "resource" "pod-identity-agent" "key" "podIdentityAgent")
+  (dict "resource" "ebs-csi" "key" "ebsCsi")
+}}
+  {{- $name := $item.resource }}
+  {{- $entry := get $raw (printf "addon-%s" $name) | default dict }}
+  {{- $status := (($entry.resource | default dict).status | default dict) }}
+  {{- $atProvider := $status.atProvider | default dict }}
+  {{- $addons = set $addons $item.key (dict
+    "ready" (get $readiness (printf "addon-%s" $name) | default false)
+    "id" ($atProvider.id | default "")
+    "arn" ($atProvider.arn | default "")
+  ) }}
+{{- end }}
+
+{{- $state = set $state "observed" (merge $state.observed (dict
+  "oidcProvider" (dict
+    "ready" (get $readiness "oidc-provider" | default false)
+    "arn" ($oidcAtProvider.arn | default "")
+  )
+  "fargateProfile" (dict
+    "ready" (get $readiness "fargate-profile" | default false)
+    "id" ($fargateAtProvider.id | default "")
+    "arn" ($fargateAtProvider.arn | default "")
+  )
+  "karpenterIrsa" (dict
+    "ready" (get $readiness "karpenter-irsa" | default false)
+    "roleArn" ($karpenterIrsaRole.arn | default "")
+    "roleName" ($karpenterIrsaRole.name | default "")
+  )
+  "ebsCsiIrsa" (dict
+    "ready" (get $readiness "ebs-csi-irsa" | default false)
+    "roleArn" ($ebsCsiIrsaRole.arn | default "")
+    "roleName" ($ebsCsiIrsaRole.name | default "")
+  )
+  "karpenterRelease" (dict
+    "ready" (get $readiness "karpenter-release" | default false)
+    "id" ($releaseAtProvider.id | default "")
+    "state" ($releaseAtProvider.state | default "")
+    "revision" ($releaseAtProvider.revision | default "")
+  )
+  "karpenterQueue" (dict
+    "ready" (get $readiness "karpenter-queue" | default false)
+    "arn" ($queueAtProvider.arn | default "")
+    "url" ($queueAtProvider.url | default "")
+  )
+  "addons" $addons
+)) }}

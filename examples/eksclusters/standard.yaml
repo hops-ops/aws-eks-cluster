@@ -1,0 +1,38 @@
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: EKSCluster
+metadata:
+  name: standard
+  namespace: default
+spec:
+  clusterName: standard
+  region: us-east-2
+  accountId: "123456789012"
+  version: "1.35"
+  subnetIds:
+  - subnet-0000000000000000a
+  - subnet-0000000000000000b
+  adminRoleArn: arn:aws:iam::123456789012:role/Admin
+  labels:
+    environment: test
+  tags:
+    Environment: test
+  karpenter:
+    nodeClasses:
+      storageNvme:
+        enabled: true
+        name: hops-storage-nvme
+        amiFamily: AL2023
+        instanceStorePolicy: RAID0
+        amiSelectorTerms:
+        - alias: al2023@latest
+        userData: |
+          #!/bin/bash
+          echo storage-node
+    nodePools:
+      default:
+        name: hops-apps
+        limits:
+          cpu: "4"
+  storage:
+    defaultClass:
+      enabled: true

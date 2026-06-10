@@ -1,0 +1,83 @@
+# code: language=yaml
+#
+# Set $state.observed.cluster from atProvider values
+# Also builds readiness map for use by other observed files
+# Depends on: 000-state-init.yaml.gotmpl ($state)
+#
+
+{{- $raw := $.observed.resources | default dict }}
+
+# ==============================================================================
+# Resource Readiness Helper
+# Build readiness map once for use by all observed templates
+# ==============================================================================
+{{- $readiness := dict }}
+{{- range $name, $entry := $raw }}
+  {{- $ready := false }}
+  {{- $resource := $entry.resource | default dict }}
+  {{- $status := $resource.status | default dict }}
+  {{- $conditions := $status.conditions | default list }}
+  {{- range $conditions }}
+    {{- if and (eq (get . "type") "Ready") (eq (get . "status") "True") }}
+      {{- $ready = true }}
+    {{- end }}
+  {{- end }}
+  {{- $readiness = merge $readiness (dict $name $ready) }}
+{{- end }}
+
+# ==============================================================================
+# Cluster Observed Values
+# ==============================================================================
+{{- $clusterEntry := get $raw "cluster" | default dict }}
+{{- $clusterResource := $clusterEntry.resource | default dict }}
+{{- $clusterStatus := $clusterResource.status | default dict }}
+{{- $clusterAtProvider := $clusterStatus.atProvider | default dict }}
+
+# VPC Config (object)
+{{- $clusterVpcConfig := $clusterAtProvider.vpcConfig | default dict }}
+
+# Identity/OIDC (identity and oidc are arrays)
+{{- $identityArr := $clusterAtProvider.identity | default list }}
+{{- $clusterIdentity := dict }}
+{{- if gt (len $identityArr) 0 }}
+  {{- $clusterIdentity = index $identityArr 0 }}
+{{- end }}
+{{- $oidcArr := $clusterIdentity.oidc | default list }}
+{{- $clusterOidc := dict }}
+{{- if gt (len $oidcArr) 0 }}
+  {{- $clusterOidc = index $oidcArr 0 }}
+{{- end }}
+
+# Control plane status from conditions
+{{- $clusterConditions := $clusterStatus.conditions | default list }}
+{{- $controlPlaneStatus := "Pending" }}
+{{- range $clusterConditions }}
+  {{- if eq (get . "type") "Ready" }}
+    {{- $controlPlaneStatus = get . "reason" | default "Unknown" }}
+  {{- end }}
+{{- end }}
+
+# Extract values
+{{- $clusterReady := get $readiness "cluster" | default false }}
+{{- $clusterEndpoint := $clusterAtProvider.endpoint | default "" }}
+{{- $clusterSecurityGroupId := $clusterVpcConfig.clusterSecurityGroupId | default "" }}
+{{- $clusterSubnetIds := $clusterVpcConfig.subnetIds | default list }}
+{{- $clusterOidcIssuer := $clusterOidc.issuer | default "" }}
+{{- $clusterOidcId := $clusterOidcIssuer | replace "https://" "" }}
+
+# ==============================================================================
+# Set $state.observed.cluster
+# ==============================================================================
+{{- $state = set $state "observed" (merge $state.observed (dict
+  "cluster" (dict
+    "ready" $clusterReady
+    "endpoint" $clusterEndpoint
+    "securityGroupId" $clusterSecurityGroupId
+    "subnetIds" $clusterSubnetIds
+    "oidcIssuer" $clusterOidcIssuer
+    "oidc" $clusterOidcId
+    "status" $controlPlaneStatus
+  )
+  "_readiness" $readiness
+  "_raw" $raw
+)) }}

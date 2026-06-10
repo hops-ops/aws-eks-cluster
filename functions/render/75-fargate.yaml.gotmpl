@@ -1,0 +1,85 @@
+# code: language=yaml
+
+{{- $ec := $state.ekscluster }}
+{{- $obs := $state.observed }}
+
+{{- if $ec.render.fargate }}
+---
+apiVersion: eks.aws.m.upbound.io/v1beta1
+kind: FargateProfile
+metadata:
+  name: {{ $ec.cluster.name }}-{{ $ec.fargate.profileName }}
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "fargate-profile" }}
+    crossplane.io/external-name: {{ $ec.fargate.profileName }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    clusterName: {{ $ec.cluster.name }}
+    podExecutionRoleArnRef:
+      name: {{ $ec.iam.fargateRoleName }}
+    region: {{ $ec.cluster.region }}
+    selector:
+    {{- range $selector := $ec.fargate.selectors }}
+    - namespace: {{ $selector.namespace }}
+      {{- if $selector.labels }}
+      labels: {{ $selector.labels | toJson }}
+      {{- end }}
+    {{- end }}
+    {{- if $ec.cluster.observedSubnetIds }}
+    subnetIds: {{ $ec.cluster.observedSubnetIds | toJson }}
+    {{- else }}
+    subnetIds: {{ $ec.cluster.subnetIds | toJson }}
+    {{- end }}
+    tags: {{ merge (dict "Name" (printf "%s-%s" $ec.cluster.name $ec.fargate.profileName)) $ec.tags | toJson }}
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+
+{{- if and $obs.fargateRole.ready $obs.fargateProfile.ready }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-fargate-profile-before-role
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-fargate-profile-before-role" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: iam.aws.m.upbound.io/v1beta1
+    kind: Role
+    resourceRef:
+      name: {{ $ec.iam.fargateRoleName }}
+  by:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: FargateProfile
+    resourceRef:
+      name: {{ $ec.cluster.name }}-{{ $ec.fargate.profileName }}
+{{- end }}
+
+{{- if and $obs.cluster.ready $obs.fargateProfile.ready }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-fargate-profile-before-cluster
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-fargate-profile-before-cluster" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: Cluster
+    resourceRef:
+      name: {{ $ec.cluster.name }}
+  by:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: FargateProfile
+    resourceRef:
+      name: {{ $ec.cluster.name }}-{{ $ec.fargate.profileName }}
+{{- end }}
+{{- end }}

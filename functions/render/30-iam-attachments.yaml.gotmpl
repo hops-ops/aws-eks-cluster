@@ -1,0 +1,70 @@
+# code: language=yaml
+
+{{- $ec := $state.ekscluster }}
+{{- $obs := $state.observed }}
+{{- $readiness := $obs._readiness }}
+
+{{- if $ec.render.iamAttachments }}
+{{- $attachments := list
+  (dict "resource" "iam-attach-cp-cluster" "name" (printf "%s-cp-cluster" $ec.cluster.name) "role" $ec.iam.controlPlaneRoleName "policyArn" "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy")
+  (dict "resource" "iam-attach-node-worker" "name" (printf "%s-node-worker" $ec.cluster.name) "role" $ec.iam.nodeRoleName "policyArn" "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy")
+  (dict "resource" "iam-attach-node-ecr" "name" (printf "%s-node-ecr" $ec.cluster.name) "role" $ec.iam.nodeRoleName "policyArn" "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPullOnly")
+  (dict "resource" "iam-attach-node-cni" "name" (printf "%s-node-cni" $ec.cluster.name) "role" $ec.iam.nodeRoleName "policyArn" "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy")
+}}
+{{- if $ec.fargate.enabled }}
+  {{- $attachments = append $attachments (dict "resource" "iam-attach-fargate-pod-execution" "name" (printf "%s-fargate-pod-execution" $ec.cluster.name) "role" $ec.iam.fargateRoleName "policyArn" "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy") }}
+{{- end }}
+
+{{- range $attachment := $attachments }}
+---
+apiVersion: iam.aws.m.upbound.io/v1beta1
+kind: RolePolicyAttachment
+metadata:
+  name: {{ $attachment.name }}
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation $attachment.resource }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    policyArn: {{ $attachment.policyArn }}
+    roleRef:
+      name: {{ $attachment.role }}
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+{{- end }}
+
+{{- range $attachment := $attachments }}
+{{- $roleReady := false }}
+{{- if eq $attachment.role $ec.iam.controlPlaneRoleName }}
+  {{- $roleReady = $obs.controlPlaneRole.ready }}
+{{- else if eq $attachment.role $ec.iam.nodeRoleName }}
+  {{- $roleReady = $obs.nodeRole.ready }}
+{{- else if eq $attachment.role $ec.iam.fargateRoleName }}
+  {{- $roleReady = $obs.fargateRole.ready }}
+{{- end }}
+{{- if and $roleReady (get $readiness $attachment.resource) }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-{{ $attachment.resource }}-before-role
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "delete-%s-before-role" $attachment.resource) }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: iam.aws.m.upbound.io/v1beta1
+    kind: Role
+    resourceRef:
+      name: {{ $attachment.role }}
+  by:
+    apiVersion: iam.aws.m.upbound.io/v1beta1
+    kind: RolePolicyAttachment
+    resourceRef:
+      name: {{ $attachment.name }}
+{{- end }}
+{{- end }}
+{{- end }}

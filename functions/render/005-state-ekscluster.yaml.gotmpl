@@ -1,0 +1,99 @@
+# code: language=yaml
+
+{{- $eff := $state.spec.effective }}
+{{- $obs := $state.observed }}
+
+{{- $controlPlaneRoleName := printf "%s-controlplane" $eff.clusterName }}
+{{- $nodeRoleName := printf "%s-node" $eff.clusterName }}
+{{- $fargateRoleName := printf "%s-fargate" $eff.clusterName }}
+{{- $karpenterIrsaName := printf "%s-karpenter" $eff.clusterName }}
+{{- $ebsCsiIrsaName := printf "%s-ebs-csi" $eff.clusterName }}
+{{- $queueName := $eff.karpenter.interruptionQueue.name }}
+
+{{- $renderIamRoles := true }}
+{{- $renderIamAttachments := ne ($obs.controlPlaneRole.arn | default "") "" }}
+{{- $renderKms := $eff.encryptionEnabled }}
+{{- $renderCluster := and (ne ($obs.controlPlaneRole.arn | default "") "") (or (not $eff.encryptionEnabled) (ne ($obs.kms.arn | default "") "")) }}
+{{- $renderClusterAuth := ne ($obs.cluster.endpoint | default "") "" }}
+{{- $renderProviderConfigs := $obs.clusterAuth.ready }}
+{{- $renderOidc := and $eff.oidc.enabled (ne ($obs.cluster.oidcIssuer | default "") "") }}
+{{- $renderKarpenterIrsa := and $eff.karpenter.enabled (ne ($obs.oidcProvider.arn | default "") "") }}
+{{- $renderEbsCsiIrsa := and $eff.addons.ebsCsi.enabled (ne ($obs.oidcProvider.arn | default "") "") }}
+{{- $renderFargate := and $eff.fargate.enabled (ne ($obs.fargateRole.arn | default "") "") (ne ($obs.cluster.endpoint | default "") "") }}
+{{- $renderAddons := ne ($obs.cluster.endpoint | default "") "" }}
+{{- $renderKarpenterNamespace := and $eff.karpenter.enabled $renderProviderConfigs }}
+{{- $karpenterNamespaceReady := get $obs._readiness "karpenter-namespace" | default false }}
+{{- $corednsReady := or (not $eff.addons.coredns.enabled) $obs.addons.coredns.ready }}
+{{- $renderKarpenterHelm := and $eff.karpenter.enabled $obs.clusterAuth.ready $karpenterNamespaceReady $corednsReady (ne ($obs.karpenterIrsa.roleArn | default "") "") (or (not $eff.fargate.enabled) (ne ($obs.fargateProfile.id | default "") "")) }}
+{{- $renderKarpenterCapacity := and $renderProviderConfigs $obs.karpenterRelease.ready }}
+{{- $renderDefaultStorageClass := and $eff.storage.defaultClass.enabled $obs.clusterAuth.ready (ne ($obs.addons.ebsCsi.id | default "") "") }}
+{{- $renderInterruption := and $eff.karpenter.enabled $eff.karpenter.interruptionQueue.enabled }}
+
+{{- $ec := dict
+  "namespace" $eff.namespace
+  "cluster" (dict
+    "name" $eff.clusterName
+    "region" $eff.region
+    "accountId" $eff.accountId
+    "version" $eff.version
+    "subnetIds" $eff.subnetIds
+    "observedSubnetIds" ($obs.cluster.subnetIds | default list)
+    "subnetSelector" $eff.subnetSelector
+    "useSubnetSelector" (and (eq (len $eff.subnetIds) 0) (or $eff.subnetSelector.matchControllerRef $eff.subnetSelector.matchLabels))
+    "privateAccess" $eff.privateAccess
+    "publicAccess" $eff.publicAccess
+    "encryptionEnabled" $eff.encryptionEnabled
+  )
+  "iam" (dict
+    "controlPlaneRoleName" $controlPlaneRoleName
+    "nodeRoleName" $nodeRoleName
+    "fargateRoleName" $fargateRoleName
+    "controlPlaneRoleArn" (printf "arn:aws:iam::%s:role/%s" $eff.accountId $controlPlaneRoleName)
+    "nodeRoleArn" (printf "arn:aws:iam::%s:role/%s" $eff.accountId $nodeRoleName)
+    "fargateRoleArn" (printf "arn:aws:iam::%s:role/%s" $eff.accountId $fargateRoleName)
+    "permissionsBoundary" $eff.permissionsBoundary
+    "controlPlaneRole" $eff.iam.controlPlaneRole
+    "nodeRole" $eff.iam.nodeRole
+    "fargateRole" $eff.fargate.podExecutionRole
+  )
+  "oidc" $eff.oidc
+  "fargate" $eff.fargate
+  "karpenter" (merge $eff.karpenter (dict
+    "irsaName" $karpenterIrsaName
+    "ebsCsiIrsaName" $ebsCsiIrsaName
+    "queueName" $queueName
+  ))
+  "addons" $eff.addons
+  "storage" $eff.storage
+  "tags" $eff.tags
+  "labels" $eff.labels
+  "managementPolicies" $eff.managementPolicies
+  "externalName" $eff.externalName
+  "kms" $eff.kms
+  "adminRoleArn" $eff.adminRoleArn
+  "accessEntries" $eff.accessEntries
+  "providerConfig" $eff.providerConfigRef
+  "kubernetesProviderConfig" $eff.kubernetesProviderConfigRef
+  "render" (dict
+    "iamRoles" $renderIamRoles
+    "iamAttachments" $renderIamAttachments
+    "kms" $renderKms
+    "cluster" $renderCluster
+    "clusterAuth" $renderClusterAuth
+    "providerConfigs" $renderProviderConfigs
+    "oidc" $renderOidc
+    "karpenterIrsa" $renderKarpenterIrsa
+    "ebsCsiIrsa" $renderEbsCsiIrsa
+    "fargate" $renderFargate
+    "addons" $renderAddons
+    "karpenterNamespace" $renderKarpenterNamespace
+    "karpenterHelm" $renderKarpenterHelm
+    "karpenterCapacity" $renderKarpenterCapacity
+    "defaultStorageClass" $renderDefaultStorageClass
+    "interruption" $renderInterruption
+    "defaultAdmin" (and (ne $eff.adminRoleArn "") (ne ($obs.cluster.endpoint | default "") ""))
+    "accessEntries" (ne ($obs.cluster.endpoint | default "") "")
+  )
+}}
+
+{{- $state = set $state "ekscluster" $ec }}

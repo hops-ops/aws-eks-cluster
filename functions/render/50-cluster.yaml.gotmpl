@@ -1,0 +1,100 @@
+# code: language=yaml
+
+{{- $ec := $state.ekscluster }}
+{{- $obs := $state.observed }}
+
+{{- if $ec.render.cluster }}
+---
+apiVersion: eks.aws.m.upbound.io/v1beta1
+kind: Cluster
+metadata:
+  name: {{ $ec.cluster.name }}
+  labels: {{ merge (dict "cluster" $ec.cluster.name) $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "cluster" }}
+    {{- if $ec.externalName }}
+    crossplane.io/external-name: {{ $ec.externalName }}
+    {{- end }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    accessConfig:
+      authenticationMode: API
+      bootstrapClusterCreatorAdminPermissions: true
+    bootstrapSelfManagedAddons: false
+    {{- if $ec.cluster.encryptionEnabled }}
+    encryptionConfig:
+      provider:
+        keyArn: {{ $obs.kms.arn }}
+      resources:
+      - secrets
+    {{- end }}
+    region: {{ $ec.cluster.region }}
+    roleArnRef:
+      name: {{ $ec.iam.controlPlaneRoleName }}
+    tags: {{ merge (dict "Name" $ec.cluster.name) $ec.tags | toJson }}
+    version: "{{ $ec.cluster.version }}"
+    vpcConfig:
+      endpointPrivateAccess: {{ $ec.cluster.privateAccess }}
+      endpointPublicAccess: {{ $ec.cluster.publicAccess }}
+      {{- if $ec.cluster.useSubnetSelector }}
+      subnetIdSelector:
+        {{- if $ec.cluster.subnetSelector.matchControllerRef }}
+        matchControllerRef: true
+        {{- end }}
+        {{- if $ec.cluster.subnetSelector.matchLabels }}
+        matchLabels: {{ $ec.cluster.subnetSelector.matchLabels | toJson }}
+        {{- end }}
+      {{- else }}
+      subnetIds: {{ $ec.cluster.subnetIds | toJson }}
+      {{- end }}
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+
+{{- if and $obs.controlPlaneRole.ready $obs.cluster.ready }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-cluster-before-cp-role
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-cluster-before-cp-role" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: iam.aws.m.upbound.io/v1beta1
+    kind: Role
+    resourceRef:
+      name: {{ $ec.iam.controlPlaneRoleName }}
+  by:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: Cluster
+    resourceRef:
+      name: {{ $ec.cluster.name }}
+{{- end }}
+
+{{- if and $ec.cluster.encryptionEnabled $obs.kms.ready $obs.cluster.ready }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-cluster-before-kms
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-cluster-before-kms" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: kms.aws.m.upbound.io/v1beta1
+    kind: Key
+    resourceRef:
+      name: {{ $ec.cluster.name }}-secrets
+  by:
+    apiVersion: eks.aws.m.upbound.io/v1beta1
+    kind: Cluster
+    resourceRef:
+      name: {{ $ec.cluster.name }}
+{{- end }}
+{{- end }}

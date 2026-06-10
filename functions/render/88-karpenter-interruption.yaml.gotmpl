@@ -1,0 +1,110 @@
+# code: language=yaml
+
+{{- $ec := $state.ekscluster }}
+{{- $obs := $state.observed }}
+
+{{- if $ec.render.interruption }}
+---
+apiVersion: sqs.aws.m.upbound.io/v1beta1
+kind: Queue
+metadata:
+  name: {{ $ec.cluster.name }}-karpenter
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "karpenter-queue" }}
+    {{- if $ec.karpenter.interruptionQueue.externalName }}
+    crossplane.io/external-name: {{ $ec.karpenter.interruptionQueue.externalName }}
+    {{- end }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    messageRetentionSeconds: 300
+    name: {{ $ec.karpenter.queueName }}
+    region: {{ $ec.cluster.region }}
+    tags: {{ merge (dict "Name" $ec.karpenter.queueName) $ec.tags | toJson }}
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+
+{{- if ne ($obs.karpenterQueue.arn | default "") "" }}
+---
+apiVersion: sqs.aws.m.upbound.io/v1beta1
+kind: QueuePolicy
+metadata:
+  name: {{ $ec.cluster.name }}-karpenter
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "karpenter-queue-policy" }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    policy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {"Service": "events.amazonaws.com"},
+            "Action": "sqs:SendMessage",
+            "Resource": "{{ $obs.karpenterQueue.arn }}"
+          }
+        ]
+      }
+    queueUrlRef:
+      name: {{ $ec.cluster.name }}-karpenter
+    region: {{ $ec.cluster.region }}
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+
+{{- $events := list
+  (dict "name" "spot-interruption" "pattern" "{\"source\":[\"aws.ec2\"],\"detail-type\":[\"EC2 Spot Instance Interruption Warning\"]}")
+  (dict "name" "rebalance" "pattern" "{\"source\":[\"aws.ec2\"],\"detail-type\":[\"EC2 Instance Rebalance Recommendation\"]}")
+  (dict "name" "instance-state-change" "pattern" "{\"source\":[\"aws.ec2\"],\"detail-type\":[\"EC2 Instance State-change Notification\"]}")
+  (dict "name" "scheduled-change" "pattern" "{\"source\":[\"aws.health\"],\"detail-type\":[\"AWS Health Event\"]}")
+}}
+{{- range $event := $events }}
+---
+apiVersion: cloudwatchevents.aws.m.upbound.io/v1beta1
+kind: Rule
+metadata:
+  name: {{ $ec.cluster.name }}-karpenter-{{ $event.name }}
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "karpenter-rule-%s" $event.name) }}
+    crossplane.io/external-name: {{ $ec.cluster.name }}-karpenter-{{ $event.name }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    eventBusName: default
+    eventPattern: {{ $event.pattern | quote }}
+    region: {{ $ec.cluster.region }}
+    tags: {{ merge (dict "Name" (printf "%s-karpenter-%s" $ec.cluster.name $event.name)) $ec.tags | toJson }}
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+
+{{- if get $obs._readiness (printf "karpenter-rule-%s" $event.name) }}
+---
+apiVersion: cloudwatchevents.aws.m.upbound.io/v1beta1
+kind: Target
+metadata:
+  name: {{ $ec.cluster.name }}-karpenter-{{ $event.name }}
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "karpenter-target-%s" $event.name) }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    arn: {{ $obs.karpenterQueue.arn }}
+    eventBusName: default
+    rule: {{ $ec.cluster.name }}-karpenter-{{ $event.name }}
+    targetId: {{ $ec.cluster.name }}-karpenter-{{ $event.name }}
+    region: {{ $ec.cluster.region }}
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

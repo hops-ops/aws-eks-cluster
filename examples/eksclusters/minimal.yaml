@@ -1,0 +1,13 @@
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: EKSCluster
+metadata:
+  name: minimal
+  namespace: default
+spec:
+  clusterName: minimal
+  region: us-east-2
+  accountId: "123456789012"
+  version: "1.35"
+  subnetIds:
+  - subnet-0000000000000000a
+  - subnet-0000000000000000b

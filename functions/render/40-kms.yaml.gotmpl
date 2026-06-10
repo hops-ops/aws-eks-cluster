@@ -1,0 +1,74 @@
+# code: language=yaml
+# KMS Key for EKS Secrets Encryption
+
+{{ $ec := $state.ekscluster }}
+{{ $obs := $state.observed }}
+{{ $readiness := $obs._readiness }}
+
+{{ if $ec.render.kms }}
+---
+apiVersion: kms.aws.m.upbound.io/v1beta1
+kind: Key
+metadata:
+  name: {{ $ec.cluster.name }}-secrets
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "kms-key" }}
+    {{- if $ec.kms.externalName }}
+    crossplane.io/external-name: {{ $ec.kms.externalName }}
+    {{- end }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    deletionWindowInDays: 7
+    description: Encryption key for EKS secrets in cluster {{ $ec.cluster.name }}
+    region: {{ $ec.cluster.region }}
+    tags: {{ merge (dict "Name" (printf "%s-secrets" $ec.cluster.name)) $ec.tags | toJson }}
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+
+---
+apiVersion: kms.aws.m.upbound.io/v1beta1
+kind: Alias
+metadata:
+  name: {{ $ec.cluster.name }}-secrets
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "kms-alias" }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    region: {{ $ec.cluster.region }}
+    targetKeyIdRef:
+      name: {{ $ec.cluster.name }}-secrets
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+
+# ==============================================================================
+# Usage: Delete Alias before KMS Key
+# ==============================================================================
+{{ if and $obs.kms.ready (get $readiness "kms-alias") }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-alias-before-kms
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-alias-before-kms" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: kms.aws.m.upbound.io/v1beta1
+    kind: Key
+    resourceRef:
+      name: {{ $ec.cluster.name }}-secrets
+  by:
+    apiVersion: kms.aws.m.upbound.io/v1beta1
+    kind: Alias
+    resourceRef:
+      name: {{ $ec.cluster.name }}-secrets
+{{ end }}
+{{ end }}

@@ -1,0 +1,44 @@
+# code: language=yaml
+
+{{- $obs := $state.observed }}
+{{- $ec := $state.ekscluster }}
+
+{{- $ready := and
+  $obs.cluster.ready
+  $obs.clusterAuth.ready
+  (or (not $ec.cluster.encryptionEnabled) $obs.kms.ready)
+  (or (not $ec.oidc.enabled) $obs.oidcProvider.ready)
+  (or (not $ec.fargate.enabled) $obs.fargateProfile.ready)
+  (or (not $ec.karpenter.enabled) $obs.karpenterRelease.ready)
+}}
+
+{{- $state = set $state "status" (dict
+  "ready" $ready
+  "clusterEndpoint" ($obs.cluster.endpoint | default "Pending")
+  "clusterSecurityGroupId" ($obs.cluster.securityGroupId | default "Pending")
+  "subnetIds" ($obs.cluster.subnetIds | default list)
+  "oidc" ($obs.cluster.oidc | default "Pending")
+  "controlPlaneStatus" ($obs.cluster.status | default "Pending")
+  "encryptionKeyArn" ($obs.kms.arn | default "Pending")
+  "iam" (dict
+    "controlPlaneRole" (dict
+      "arn" ($obs.controlPlaneRole.arn | default "")
+      "name" ($obs.controlPlaneRole.name | default "")
+    )
+    "nodeRole" (dict
+      "arn" ($obs.nodeRole.arn | default "")
+      "name" ($obs.nodeRole.name | default "")
+    )
+    "fargateRole" (dict
+      "arn" ($obs.fargateRole.arn | default "")
+      "name" ($obs.fargateRole.name | default "")
+    )
+  )
+  "karpenter" (dict
+    "roleArn" ($obs.karpenterIrsa.roleArn | default "")
+    "nodeClasses" (dict
+      "default" (dict "name" $ec.karpenter.nodeClasses.default.name)
+      "storageNvme" (dict "name" (ternary $ec.karpenter.nodeClasses.storageNvme.name "" $ec.karpenter.nodeClasses.storageNvme.enabled))
+    )
+  )
+) }}
