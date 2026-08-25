@@ -21,6 +21,9 @@ spec:
         properties:
           spec:
             type: object
+            x-kubernetes-validations:
+            - rule: "!has(self.externalName) || self.externalName == '' || has(self.ipFamily)"
+              message: ipFamily must be set explicitly when importing an existing EKS cluster.
             required:
             - clusterName
             - region
@@ -53,7 +56,6 @@ spec:
                 type: string
                 description: IP family used by Kubernetes pods and services.
                 enum: [ipv4, ipv6]
-                default: ipv4
               subnetIds:
                 type: array
                 description: Explicit private subnet IDs for the cluster and bootstrap capacity.

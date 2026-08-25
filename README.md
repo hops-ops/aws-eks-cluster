@@ -36,6 +36,10 @@ spec:
   - subnet-0000000000000000b
 ```
 
+For IPv6 clusters, the VPC must have both IPv4 and IPv6 CIDRs. Each node
+subnet must have an IPv6 CIDR and automatically assign IPv6 addresses, and the
+cluster must use VPC CNI version 1.10.1 or newer.
+
 ## Standard
 
 ```yaml
@@ -86,6 +90,7 @@ spec:
   region: us-east-2
   accountId: "123456789012"
   version: "1.35"
+  ipFamily: ipv4
   subnetIds:
   - subnet-0000000000000000a
   - subnet-0000000000000000b
