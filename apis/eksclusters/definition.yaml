@@ -49,6 +49,11 @@ spec:
               version:
                 type: string
                 description: Kubernetes version supported by EKS.
+              ipFamily:
+                type: string
+                description: IP family used by Kubernetes pods and services.
+                enum: [ipv4, ipv6]
+                default: ipv4
               subnetIds:
                 type: array
                 description: Explicit private subnet IDs for the cluster and bootstrap capacity.

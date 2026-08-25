@@ -129,6 +129,7 @@
   "region" $spec.region
   "accountId" $spec.accountId
   "version" $spec.version
+  "ipFamily" ($spec.ipFamily | default "ipv4")
   "subnetIds" ($spec.subnetIds | default list)
   "subnetSelector" (dict
     "matchLabels" ($subnetSelector.matchLabels | default dict)

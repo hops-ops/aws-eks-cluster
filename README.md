@@ -30,6 +30,7 @@ spec:
   region: us-east-2
   accountId: "123456789012"
   version: "1.35"
+  ipFamily: ipv6
   subnetIds:
   - subnet-0000000000000000a
   - subnet-0000000000000000b
@@ -108,6 +109,7 @@ spec:
 | --- | --- |
 | `privateAccess` | `true` |
 | `publicAccess` | `false` |
+| `ipFamily` | `ipv4` |
 | `encryptionEnabled` | `true` |
 | `oidc.enabled` | `true` |
 | `fargate.enabled` | `true` |
