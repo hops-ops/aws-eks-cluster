@@ -1,0 +1,68 @@
+# code: language=yaml
+# IAM policies for standard EKS cluster
+
+{{- $ec := $state.ekscluster }}
+{{- $readiness := $state.observed._readiness }}
+
+{{- if eq $ec.cluster.ipFamily "ipv6" }}
+---
+apiVersion: iam.aws.m.upbound.io/v1beta1
+kind: Policy
+metadata:
+  name: {{ $ec.cluster.name }}-node-cni-ipv6
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "iam-policy-node-cni-ipv6" }}
+spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
+  forProvider:
+    policy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": [
+              "ec2:AssignIpv6Addresses",
+              "ec2:DescribeInstances",
+              "ec2:DescribeTags",
+              "ec2:DescribeNetworkInterfaces",
+              "ec2:DescribeInstanceTypes"
+            ],
+            "Resource": "*"
+          },
+          {
+            "Effect": "Allow",
+            "Action": ["ec2:CreateTags"],
+            "Resource": ["arn:aws:ec2:*:*:network-interface/*"]
+          }
+        ]
+      }
+    tags: {{ merge (dict "Name" (printf "%s-node-cni-ipv6" $ec.cluster.name)) $ec.tags | toJson }}
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+
+{{ if and (get $readiness "iam-policy-node-cni-ipv6") (get $readiness "iam-attach-node-cni-ipv6") }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-iam-attach-node-cni-ipv6-before-policy
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-iam-attach-node-cni-ipv6-before-policy" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: iam.aws.m.upbound.io/v1beta1
+    kind: Policy
+    resourceRef:
+      name: {{ $ec.cluster.name }}-node-cni-ipv6
+  by:
+    apiVersion: iam.aws.m.upbound.io/v1beta1
+    kind: RolePolicyAttachment
+    resourceRef:
+      name: {{ $ec.cluster.name }}-node-cni-ipv6
+{{- end }}
+{{- end }}
