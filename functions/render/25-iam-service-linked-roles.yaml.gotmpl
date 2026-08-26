@@ -1,0 +1,28 @@
+# code: language=yaml
+# Account-wide IAM service-linked roles required by EKS cluster components.
+
+{{- $ec := $state.ekscluster }}
+
+{{- if $ec.render.ec2SpotServiceLinkedRole }}
+---
+apiVersion: iam.aws.m.upbound.io/v1beta1
+kind: ServiceLinkedRole
+metadata:
+  name: {{ $ec.cluster.name }}-ec2-spot-service-linked-role
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "iam-service-linked-role-ec2-spot" }}
+    crossplane.io/external-name: {{ $ec.iam.ec2SpotServiceLinkedRoleArn }}
+spec:
+  # This role is shared by the AWS account and must outlive any one cluster.
+  managementPolicies:
+    - Create
+    - Observe
+    - Update
+    - LateInitialize
+  forProvider:
+    awsServiceName: spot.amazonaws.com
+  providerConfigRef:
+    name: {{ $ec.providerConfig.name }}
+    kind: {{ $ec.providerConfig.kind }}
+{{- end }}

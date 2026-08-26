@@ -46,6 +46,22 @@ status:
     id: standard-fargate
     name: standard-fargate
 ---
+apiVersion: iam.aws.m.upbound.io/v1beta1
+kind: ServiceLinkedRole
+metadata:
+  name: standard-ec2-spot-service-linked-role
+  annotations:
+    crossplane.io/composition-resource-name: iam-service-linked-role-ec2-spot
+    gotemplating.fn.crossplane.io/composition-resource-name: iam-service-linked-role-ec2-spot
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  atProvider:
+    arn: arn:aws:iam::123456789012:role/aws-service-role/spot.amazonaws.com/AWSServiceRoleForEC2Spot
+    id: arn:aws:iam::123456789012:role/aws-service-role/spot.amazonaws.com/AWSServiceRoleForEC2Spot
+    name: AWSServiceRoleForEC2Spot
+---
 apiVersion: kms.aws.m.upbound.io/v1beta1
 kind: Key
 metadata:

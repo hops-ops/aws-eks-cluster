@@ -63,6 +63,26 @@ _fargate_role = {
     }
 }
 
+_ec2_spot_service_linked_role = {
+    apiVersion = "iam.aws.m.upbound.io/v1beta1"
+    kind = "ServiceLinkedRole"
+    metadata = {
+        name = "test-cluster-ec2-spot-service-linked-role"
+        annotations = {
+            "crossplane.io/composition-resource-name" = "iam-service-linked-role-ec2-spot"
+            "gotemplating.fn.crossplane.io/composition-resource-name" = "iam-service-linked-role-ec2-spot"
+        }
+    }
+    status = {
+        conditions = _ready
+        atProvider = {
+            arn = "arn:aws:iam::123456789012:role/aws-service-role/spot.amazonaws.com/AWSServiceRoleForEC2Spot"
+            id = "arn:aws:iam::123456789012:role/aws-service-role/spot.amazonaws.com/AWSServiceRoleForEC2Spot"
+            name = "AWSServiceRoleForEC2Spot"
+        }
+    }
+}
+
 _kms_key = {
     apiVersion = "kms.aws.m.upbound.io/v1beta1"
     kind = "Key"
@@ -284,7 +304,7 @@ _base_spec = {
     subnetIds = ["subnet-aaa", "subnet-bbb"]
 }
 
-_bootstrap_observed = [_control_plane_role, _node_role, _fargate_role, _kms_key, _queue]
+_bootstrap_observed = [_control_plane_role, _node_role, _fargate_role, _ec2_spot_service_linked_role, _kms_key, _queue]
 _cluster_observed = _bootstrap_observed + [_cluster, _cluster_auth, _oidc_provider, _fargate_profile]
 _ready_observed = _cluster_observed + [_karpenter_irsa, _ebs_irsa, _karpenter_namespace, _coredns_addon, _karpenter_release, _ebs_addon]
 
