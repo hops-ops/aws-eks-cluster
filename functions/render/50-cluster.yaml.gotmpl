@@ -29,6 +29,8 @@ spec:
       resources:
       - secrets
     {{- end }}
+    kubernetesNetworkConfig:
+      ipFamily: {{ $ec.cluster.ipFamily }}
     region: {{ $ec.cluster.region }}
     roleArnRef:
       name: {{ $ec.iam.controlPlaneRoleName }}
