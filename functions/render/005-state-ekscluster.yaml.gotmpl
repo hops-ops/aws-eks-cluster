@@ -9,6 +9,7 @@
 {{- $karpenterIrsaName := printf "%s-karpenter" $eff.clusterName }}
 {{- $ebsCsiIrsaName := printf "%s-ebs-csi" $eff.clusterName }}
 {{- $queueName := $eff.karpenter.interruptionQueue.name }}
+{{- $ec2SpotServiceLinkedRoleArn := printf "arn:aws:iam::%s:role/aws-service-role/spot.amazonaws.com/AWSServiceRoleForEC2Spot" $eff.accountId }}
 
 {{- $renderIamRoles := true }}
 {{- $renderIamAttachments := ne ($obs.controlPlaneRole.arn | default "") "" }}
@@ -22,6 +23,7 @@
 {{- $renderFargate := and $eff.fargate.enabled (ne ($obs.fargateRole.arn | default "") "") (ne ($obs.cluster.endpoint | default "") "") }}
 {{- $renderAddons := ne ($obs.cluster.endpoint | default "") "" }}
 {{- $renderKarpenterNamespace := and $eff.karpenter.enabled $renderProviderConfigs }}
+{{- $renderEc2SpotServiceLinkedRole := $eff.karpenter.enabled }}
 {{- $karpenterNamespaceReady := get $obs._readiness "karpenter-namespace" | default false }}
 {{- $corednsReady := or (not $eff.addons.coredns.enabled) $obs.addons.coredns.ready }}
 {{- $renderKarpenterHelm := and $eff.karpenter.enabled $obs.clusterAuth.ready $karpenterNamespaceReady $corednsReady (ne ($obs.karpenterIrsa.roleArn | default "") "") (or (not $eff.fargate.enabled) (ne ($obs.fargateProfile.id | default "") "")) }}
@@ -52,6 +54,7 @@
     "controlPlaneRoleArn" (printf "arn:aws:iam::%s:role/%s" $eff.accountId $controlPlaneRoleName)
     "nodeRoleArn" (printf "arn:aws:iam::%s:role/%s" $eff.accountId $nodeRoleName)
     "fargateRoleArn" (printf "arn:aws:iam::%s:role/%s" $eff.accountId $fargateRoleName)
+    "ec2SpotServiceLinkedRoleArn" $ec2SpotServiceLinkedRoleArn
     "permissionsBoundary" $eff.permissionsBoundary
     "controlPlaneRole" $eff.iam.controlPlaneRole
     "nodeRole" $eff.iam.nodeRole
@@ -78,6 +81,7 @@
   "render" (dict
     "iamRoles" $renderIamRoles
     "iamAttachments" $renderIamAttachments
+    "ec2SpotServiceLinkedRole" $renderEc2SpotServiceLinkedRole
     "kms" $renderKms
     "cluster" $renderCluster
     "clusterAuth" $renderClusterAuth

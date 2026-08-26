@@ -44,6 +44,18 @@
 {{- $fargateRoleName := $fargateRoleAtProvider.id | default "" }}
 
 # ==============================================================================
+# EC2 Spot Service-Linked Role
+# ==============================================================================
+{{- $ec2SpotRoleEntry := get $raw "iam-service-linked-role-ec2-spot" | default dict }}
+{{- $ec2SpotRoleResource := $ec2SpotRoleEntry.resource | default dict }}
+{{- $ec2SpotRoleStatus := $ec2SpotRoleResource.status | default dict }}
+{{- $ec2SpotRoleAtProvider := $ec2SpotRoleStatus.atProvider | default dict }}
+
+{{- $ec2SpotRoleReady := get $readiness "iam-service-linked-role-ec2-spot" | default false }}
+{{- $ec2SpotRoleArn := $ec2SpotRoleAtProvider.arn | default "" }}
+{{- $ec2SpotRoleId := $ec2SpotRoleAtProvider.id | default "" }}
+
+# ==============================================================================
 # Set $state.observed IAM values
 # ==============================================================================
 {{- $state = set $state "observed" (merge $state.observed (dict
@@ -61,5 +73,10 @@
     "ready" $fargateRoleReady
     "arn" $fargateRoleArn
     "name" $fargateRoleName
+  )
+  "ec2SpotServiceLinkedRole" (dict
+    "ready" $ec2SpotRoleReady
+    "arn" $ec2SpotRoleArn
+    "id" $ec2SpotRoleId
   )
 )) }}
