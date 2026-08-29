@@ -14,6 +14,7 @@ metadata:
   annotations:
     {{ setResourceNameAnnotation "cluster-auth" }}
 spec:
+  managementPolicies: {{ $ec.managementPolicies | toJson }}
   forProvider:
     clusterName: {{ $ec.cluster.name }}
     region: {{ $ec.cluster.region }}
