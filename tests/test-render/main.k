@@ -438,6 +438,7 @@ _items = [
                         chart = {
                             name = "karpenter"
                             repository = "oci://public.ecr.aws/karpenter"
+                            # renovate: datasource=docker depName=karpenter/karpenter registryUrl=https://public.ecr.aws
                             version = "1.12.1"
                         }
                         values.settings = {
