@@ -558,7 +558,7 @@ _items = [
                     accountId = "123456789012"
                     version = "1.35"
                     subnetIds = ["subnet-aaa", "subnet-bbb"]
-                    managementPolicies = ["Create", "Observe", "Update", "LateInitialize"]
+                    managementPolicies = ["Observe", "LateInitialize"]
                     iam.controlPlaneRole.externalName = "existing-controlplane"
                 }
             }
@@ -567,7 +567,13 @@ _items = [
                     apiVersion = "iam.aws.m.upbound.io/v1beta1"
                     kind = "Role"
                     metadata.name = "existing-controlplane"
-                    spec.managementPolicies = ["Create", "Observe", "Update", "LateInitialize"]
+                    spec.managementPolicies = ["Observe", "LateInitialize"]
+                }
+                {
+                    apiVersion = "iam.aws.m.upbound.io/v1beta1"
+                    kind = "ServiceLinkedRole"
+                    metadata.name = "existing-ec2-spot-service-linked-role"
+                    spec.managementPolicies = ["Observe", "LateInitialize"]
                 }
             ]
         }

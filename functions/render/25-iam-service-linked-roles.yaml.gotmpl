@@ -2,6 +2,10 @@
 # Account-wide IAM service-linked roles required by EKS cluster components.
 
 {{- $ec := $state.ekscluster }}
+{{- $sharedRolePolicies := without $ec.managementPolicies "Delete" }}
+{{- if has "*" $sharedRolePolicies }}
+  {{- $sharedRolePolicies = list "Create" "Observe" "Update" "LateInitialize" }}
+{{- end }}
 
 {{- if $ec.render.ec2SpotServiceLinkedRole }}
 ---
@@ -15,11 +19,8 @@ metadata:
     crossplane.io/external-name: {{ $ec.iam.ec2SpotServiceLinkedRoleArn }}
 spec:
   # This role is shared by the AWS account and must outlive any one cluster.
-  managementPolicies:
-    - Create
-    - Observe
-    - Update
-    - LateInitialize
+  # Honor restrictive parent policies during import, but never allow deletion.
+  managementPolicies: {{ $sharedRolePolicies | toJson }}
   forProvider:
     awsServiceName: spot.amazonaws.com
   providerConfigRef:
