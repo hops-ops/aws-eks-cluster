@@ -69,6 +69,8 @@
 {{- if hasKey $karpenterQueue "enabled" }}
   {{- $karpenterQueueEnabled = $karpenterQueue.enabled }}
 {{- end }}
+# renovate: datasource=docker depName=karpenter/karpenter registryUrl=https://public.ecr.aws
+{{- $karpenterChartVersion := $karpenter.chartVersion | default "1.12.1" }}
 
 {{- $nodeClasses := $karpenter.nodeClasses | default dict }}
 {{- $defaultNodeClass := $nodeClasses.default | default dict }}
@@ -172,7 +174,7 @@
     "enabled" $karpenterEnabled
     "namespace" $karpenterNamespace
     "releaseName" $karpenterReleaseName
-    "chartVersion" ($karpenter.chartVersion | default "1.12.1")
+    "chartVersion" $karpenterChartVersion
     "serviceAccountName" $karpenterServiceAccount
     "values" ($karpenter.values | default dict)
     "overrideAllValues" ($karpenter.overrideAllValues | default dict)
