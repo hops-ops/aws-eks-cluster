@@ -70,7 +70,7 @@
   {{- $karpenterQueueEnabled = $karpenterQueue.enabled }}
 {{- end }}
 # renovate: datasource=docker depName=karpenter/karpenter registryUrl=https://public.ecr.aws
-{{- $karpenterChartVersion := $karpenter.chartVersion | default "1.12.1" }}
+{{- $karpenterChartVersion := $karpenter.chartVersion | default "1.14.1" }}
 
 {{- $nodeClasses := $karpenter.nodeClasses | default dict }}
 {{- $defaultNodeClass := $nodeClasses.default | default dict }}
