@@ -439,7 +439,7 @@ _items = [
                             name = "karpenter"
                             repository = "oci://public.ecr.aws/karpenter"
                             # renovate: datasource=docker depName=karpenter/karpenter registryUrl=https://public.ecr.aws
-                            version = "1.15.0"
+                            version = "1.15.1"
                         }
                         values.settings = {
                             clusterName = "test-cluster"
