@@ -152,6 +152,29 @@ spec:
       name: {{ $ec.cluster.name }}-karpenter
 {{- end }}
 
+{{- if and (get $readiness "karpenter-release") $obs.karpenterQueue.ready }}
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  name: {{ $ec.cluster.name }}-delete-karpenter-release-before-queue
+  labels: {{ $ec.labels | toJson }}
+  annotations:
+    {{ setResourceNameAnnotation "delete-karpenter-release-before-queue" }}
+spec:
+  replayDeletion: true
+  of:
+    apiVersion: sqs.aws.m.upbound.io/v1beta1
+    kind: Queue
+    resourceRef:
+      name: {{ $ec.cluster.name }}-karpenter
+  by:
+    apiVersion: helm.m.crossplane.io/v1beta1
+    kind: Release
+    resourceRef:
+      name: {{ $ec.cluster.name }}-karpenter
+{{- end }}
+
 {{- if and (get $readiness "karpenter-release") (get $readiness "karpenter-namespace") }}
 ---
 apiVersion: protection.crossplane.io/v1beta1
