@@ -194,6 +194,7 @@
         "userData" ($defaultNodeClass.userData | default "")
         "blockDeviceMappings" ($defaultNodeClass.blockDeviceMappings | default list)
         "metadataOptions" ($defaultNodeClass.metadataOptions | default dict)
+        "kubelet" ($defaultNodeClass.kubelet | default dict)
       ) dict)
       "storageNvme" (merge (dict
         "enabled" $storageNodeClassEnabled
@@ -204,6 +205,7 @@
         "userData" ($storageNodeClass.userData | default "")
         "blockDeviceMappings" ($storageNodeClass.blockDeviceMappings | default list)
         "metadataOptions" ($storageNodeClass.metadataOptions | default dict)
+        "kubelet" ($storageNodeClass.kubelet | default dict)
       ) dict)
     )
     "nodePools" (dict

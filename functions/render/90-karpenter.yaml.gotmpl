@@ -235,6 +235,9 @@ spec:
 {{- if $class.userData }}
   {{- $_ := set $classSpec "userData" $class.userData }}
 {{- end }}
+{{- if $class.kubelet }}
+  {{- $_ := set $classSpec "kubelet" $class.kubelet }}
+{{- end }}
 {{- if $class.blockDeviceMappings }}
   {{- $_ := set $classSpec "blockDeviceMappings" $class.blockDeviceMappings }}
 {{- end }}
