@@ -295,6 +295,10 @@ spec:
                           metadataOptions:
                             type: object
                             x-kubernetes-preserve-unknown-fields: true
+                          kubelet:
+                            description: Native EC2NodeClass kubelet configuration. Omitted by default; ensure pod density is supported by the cluster CNI.
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
                       storageNvme:
                         type: object
                         properties:
@@ -322,6 +326,10 @@ spec:
                               type: object
                               x-kubernetes-preserve-unknown-fields: true
                           metadataOptions:
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          kubelet:
+                            description: Native EC2NodeClass kubelet configuration. Omitted by default; ensure pod density is supported by the cluster CNI.
                             type: object
                             x-kubernetes-preserve-unknown-fields: true
                   nodePools:

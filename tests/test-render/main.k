@@ -507,6 +507,47 @@ _items = [
     }
 
     metav1alpha1.CompositionTest {
+        metadata.name = "kubelet-settings-forward-to-each-node-class"
+        spec = {
+            compositionPath = "apis/eksclusters/composition.yaml"
+            xrdPath = "apis/eksclusters/definition.yaml"
+            timeoutSeconds = 120
+            validate = False
+            xr = awsv1alpha1.EKSCluster {
+                metadata.name = "test-cluster"
+                spec = {
+                    **_base_spec
+                    karpenter.nodeClasses = {
+                        default.kubelet = {maxPods = 110, podsPerCore = 55}
+                        storageNvme = {
+                            enabled = True
+                            kubelet = {maxPods = 58}
+                        }
+                    }
+                }
+            }
+            observedResources = _ready_observed
+            assertResources = [
+                {
+                    apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                    kind = "Object"
+                    metadata.name = "test-cluster-hops-default"
+                    spec.forProvider.manifest.spec = {
+                        role = "test-cluster-node"
+                        kubelet = {maxPods = 110, podsPerCore = 55}
+                    }
+                }
+                {
+                    apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                    kind = "Object"
+                    metadata.name = "test-cluster-hops-storage-nvme"
+                    spec.forProvider.manifest.spec.kubelet = {maxPods = 58}
+                }
+            ]
+        }
+    }
+
+    metav1alpha1.CompositionTest {
         metadata.name = "explicit-false-defaults-allow-cluster-without-kms"
         spec = {
             compositionPath = "apis/eksclusters/composition.yaml"
