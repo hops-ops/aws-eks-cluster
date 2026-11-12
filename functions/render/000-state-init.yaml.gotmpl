@@ -57,6 +57,14 @@
   (dict "namespace" "kube-system" "labels" (dict "k8s-app" "kube-dns"))
 ) }}
 
+{{- $fargateSubnetIds := $fargate.subnetIds | default list }}
+{{- $fargateProfileName := $fargate.profileName | default "bootstrap" }}
+{{- $fargateResourceName := "fargate-profile" }}
+{{- /* Explicit subnet migrations opt into a distinct child identity. Legacy names stay unchanged. */}}
+{{- if and (gt (len $fargateSubnetIds) 0) (ne $fargateProfileName "bootstrap") }}
+  {{- $fargateResourceName = printf "fargate-profile-%s" $fargateProfileName }}
+{{- end }}
+
 {{- $karpenterEnabled := true }}
 {{- if hasKey $karpenter "enabled" }}
   {{- $karpenterEnabled = $karpenter.enabled }}
@@ -166,7 +174,9 @@
   )
   "fargate" (dict
     "enabled" $fargateEnabled
-    "profileName" ($fargate.profileName | default "bootstrap")
+    "profileName" $fargateProfileName
+    "subnetIds" $fargateSubnetIds
+    "resourceName" $fargateResourceName
     "selectors" $fargateSelectors
     "podExecutionRole" (dict "externalName" (($fargate.podExecutionRole | default dict).externalName | default ""))
   )

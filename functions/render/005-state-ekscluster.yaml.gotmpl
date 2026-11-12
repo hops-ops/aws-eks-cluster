@@ -26,7 +26,9 @@
 {{- $renderEc2SpotServiceLinkedRole := $eff.karpenter.enabled }}
 {{- $karpenterNamespaceReady := get $obs._readiness "karpenter-namespace" | default false }}
 {{- $corednsReady := or (not $eff.addons.coredns.enabled) $obs.addons.coredns.ready }}
-{{- $renderKarpenterHelm := and $eff.karpenter.enabled $obs.clusterAuth.ready $karpenterNamespaceReady $corednsReady (ne ($obs.karpenterIrsa.roleArn | default "") "") (or (not $eff.fargate.enabled) (ne ($obs.fargateProfile.id | default "") "")) }}
+{{- /* Keep the current release while an explicit replacement profile is being created. */}}
+{{- $keepKarpenter := and (ne $eff.fargate.resourceName "fargate-profile") (hasKey $obs._raw "karpenter-release") }}
+{{- $renderKarpenterHelm := and $eff.karpenter.enabled $obs.clusterAuth.ready $karpenterNamespaceReady $corednsReady (ne ($obs.karpenterIrsa.roleArn | default "") "") (or (not $eff.fargate.enabled) (ne ($obs.fargateProfile.id | default "") "") $keepKarpenter) }}
 {{- $renderKarpenterCapacity := and $renderProviderConfigs $obs.karpenterRelease.ready }}
 {{- $renderDefaultStorageClass := and $eff.storage.defaultClass.enabled $obs.clusterAuth.ready (ne ($obs.addons.ebsCsi.id | default "") "") }}
 {{- $renderInterruption := and $eff.karpenter.enabled $eff.karpenter.interruptionQueue.enabled }}

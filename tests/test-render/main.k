@@ -390,6 +390,7 @@ _items = [
                     apiVersion = "eks.aws.m.upbound.io/v1beta1"
                     kind = "FargateProfile"
                     metadata.name = "test-cluster-bootstrap"
+                    spec.forProvider.subnetIds = ["subnet-aaa", "subnet-bbb"]
                     spec.forProvider.selector = [
                         {namespace = "karpenter"}
                         {namespace = "kube-system", labels = {"k8s-app" = "kube-dns"}}
@@ -579,6 +580,115 @@ _items = [
             ]
         }
     }
+    metav1alpha1.CompositionTest {
+        metadata.name = "single-az-fargate-does-not-shrink-cluster-or-delete-karpenter"
+        spec = {
+            compositionPath = "apis/eksclusters/composition.yaml"
+            xrdPath = "apis/eksclusters/definition.yaml"
+            timeoutSeconds = 120
+            validate = False
+            xr = awsv1alpha1.EKSCluster {
+                metadata.name = "test-cluster"
+                spec = _base_spec | {
+                    fargate = {profileName = "a-bootstrap", subnetIds = ["subnet-aaa"]}
+                    karpenter.chartVersion = "1.12.1"
+                }
+            }
+            observedResources = _ready_observed
+            assertResources = [
+                {
+                    apiVersion = "eks.aws.m.upbound.io/v1beta1"
+                    kind = "FargateProfile"
+                    metadata = {
+                        name = "test-cluster-a-bootstrap"
+                    }
+                    spec.forProvider = {
+                        subnetIds = ["subnet-aaa"]
+                        podExecutionRoleArnRef.name = "test-cluster-fargate"
+                    }
+                }
+                {
+                    apiVersion = "eks.aws.m.upbound.io/v1beta1"
+                    kind = "Cluster"
+                    metadata.name = "test-cluster"
+                    spec.forProvider.vpcConfig.subnetIds = ["subnet-aaa", "subnet-bbb"]
+                }
+                {
+                    apiVersion = "helm.m.crossplane.io/v1beta1"
+                    kind = "Release"
+                    metadata.name = "test-cluster-karpenter"
+                    spec.forProvider.chart.version = "1.12.1"
+                }
+            ]
+        }
+    }
+
+    metav1alpha1.CompositionTest {
+        metadata.name = "empty-fargate-subnets-preserve-default-profile-identity"
+        spec = {
+            compositionPath = "apis/eksclusters/composition.yaml"
+            xrdPath = "apis/eksclusters/definition.yaml"
+            timeoutSeconds = 120
+            validate = False
+            xr = awsv1alpha1.EKSCluster {
+                metadata.name = "test-cluster"
+                spec = _base_spec | {fargate.subnetIds = []}
+            }
+            observedResources = _cluster_observed
+            assertResources = [{
+                apiVersion = "eks.aws.m.upbound.io/v1beta1"
+                kind = "FargateProfile"
+                metadata = {
+                    name = "test-cluster-bootstrap"
+                }
+                spec.forProvider.subnetIds = ["subnet-aaa", "subnet-bbb"]
+            }]
+        }
+    }
+
+    metav1alpha1.CompositionTest {
+        metadata.name = "new-fargate-profile-observation-protects-existing-parents"
+        spec = {
+            compositionPath = "apis/eksclusters/composition.yaml"
+            xrdPath = "apis/eksclusters/definition.yaml"
+            timeoutSeconds = 120
+            validate = False
+            xr = awsv1alpha1.EKSCluster {
+                metadata.name = "test-cluster"
+                spec = _base_spec | {
+                    fargate = {profileName = "a-bootstrap", subnetIds = ["subnet-aaa"]}
+                }
+            }
+            observedResources = [r for r in _ready_observed if r.kind != "FargateProfile"] + [{
+                apiVersion = "eks.aws.m.upbound.io/v1beta1"
+                kind = "FargateProfile"
+                metadata = {
+                    name = "test-cluster-a-bootstrap"
+                    annotations = {
+                        "crossplane.io/composition-resource-name" = "fargate-profile-a-bootstrap"
+                        "gotemplating.fn.crossplane.io/composition-resource-name" = "fargate-profile-a-bootstrap"
+                    }
+                }
+                status = {
+                    conditions = _ready
+                    atProvider = {
+                        id = "test-cluster:a-bootstrap"
+                        arn = "arn:aws:eks:us-east-1:123456789012:fargateprofile/test-cluster/a-bootstrap/1234567890"
+                    }
+                }
+            }]
+            assertResources = [{
+                apiVersion = "protection.crossplane.io/v1beta1"
+                kind = "Usage"
+                metadata.name = "test-cluster-delete-fargate-profile-a-bootstrap-before-role"
+                spec = {
+                    of.resourceRef.name = "test-cluster-fargate"
+                    by.resourceRef.name = "test-cluster-a-bootstrap"
+                }
+            }]
+        }
+    }
+
 ]
 
 items = _items

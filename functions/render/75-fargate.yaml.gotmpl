@@ -11,7 +11,7 @@ metadata:
   name: {{ $ec.cluster.name }}-{{ $ec.fargate.profileName }}
   labels: {{ $ec.labels | toJson }}
   annotations:
-    {{ setResourceNameAnnotation "fargate-profile" }}
+    {{ setResourceNameAnnotation $ec.fargate.resourceName }}
     crossplane.io/external-name: {{ $ec.fargate.profileName }}
 spec:
   managementPolicies: {{ $ec.managementPolicies | toJson }}
@@ -27,7 +27,9 @@ spec:
       labels: {{ $selector.labels | toJson }}
       {{- end }}
     {{- end }}
-    {{- if $ec.cluster.observedSubnetIds }}
+    {{- if $ec.fargate.subnetIds }}
+    subnetIds: {{ $ec.fargate.subnetIds | toJson }}
+    {{- else if $ec.cluster.observedSubnetIds }}
     subnetIds: {{ $ec.cluster.observedSubnetIds | toJson }}
     {{- else }}
     subnetIds: {{ $ec.cluster.subnetIds | toJson }}
@@ -42,10 +44,10 @@ spec:
 apiVersion: protection.crossplane.io/v1beta1
 kind: Usage
 metadata:
-  name: {{ $ec.cluster.name }}-delete-fargate-profile-before-role
+  name: {{ $ec.cluster.name }}-delete-{{ $ec.fargate.resourceName }}-before-role
   labels: {{ $ec.labels | toJson }}
   annotations:
-    {{ setResourceNameAnnotation "delete-fargate-profile-before-role" }}
+    {{ setResourceNameAnnotation (printf "delete-%s-before-role" $ec.fargate.resourceName) }}
 spec:
   replayDeletion: true
   of:
@@ -65,10 +67,10 @@ spec:
 apiVersion: protection.crossplane.io/v1beta1
 kind: Usage
 metadata:
-  name: {{ $ec.cluster.name }}-delete-fargate-profile-before-cluster
+  name: {{ $ec.cluster.name }}-delete-{{ $ec.fargate.resourceName }}-before-cluster
   labels: {{ $ec.labels | toJson }}
   annotations:
-    {{ setResourceNameAnnotation "delete-fargate-profile-before-cluster" }}
+    {{ setResourceNameAnnotation (printf "delete-%s-before-cluster" $ec.fargate.resourceName) }}
 spec:
   replayDeletion: true
   of:
@@ -88,10 +90,10 @@ spec:
 apiVersion: protection.crossplane.io/v1beta1
 kind: Usage
 metadata:
-  name: {{ $ec.cluster.name }}-delete-karpenter-release-before-fargate-profile
+  name: {{ $ec.cluster.name }}-delete-karpenter-release-before-{{ $ec.fargate.resourceName }}
   labels: {{ $ec.labels | toJson }}
   annotations:
-    {{ setResourceNameAnnotation "delete-karpenter-release-before-fargate-profile" }}
+    {{ setResourceNameAnnotation (printf "delete-karpenter-release-before-%s" $ec.fargate.resourceName) }}
 spec:
   replayDeletion: true
   of:
