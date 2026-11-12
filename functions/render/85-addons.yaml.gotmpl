@@ -3,6 +3,8 @@
 {{- $ec := $state.ekscluster }}
 {{- $obs := $state.observed }}
 {{- $readiness := $obs._readiness }}
+{{- /* Retain established CoreDNS while an explicit replacement profile starts. */}}
+{{- $keepCoredns := and (ne $ec.fargate.resourceName "fargate-profile") (or (ne ($obs.addons.coredns.id | default "") "") (hasKey $obs._raw "karpenter-release")) }}
 
 {{- if $ec.render.addons }}
 {{- $addons := list
@@ -15,7 +17,7 @@
 {{- range $addon := $addons }}
 {{- $cfg := get $ec.addons $addon.key }}
 {{- $hasEbsRole := or (ne $addon.key "ebsCsi") (ne ($obs.ebsCsiIrsa.roleArn | default "") "") }}
-{{- $hasFargateProfile := or (ne $addon.key "coredns") (or (not $ec.fargate.enabled) (ne ($obs.fargateProfile.id | default "") "")) }}
+{{- $hasFargateProfile := or (ne $addon.key "coredns") (not $ec.fargate.enabled) (ne ($obs.fargateProfile.id | default "") "") $keepCoredns }}
 {{- if and $cfg.enabled $hasEbsRole $hasFargateProfile }}
 ---
 apiVersion: eks.aws.m.upbound.io/v1beta1
