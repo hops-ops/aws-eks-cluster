@@ -65,6 +65,8 @@ jobs:
         ]
       timeout-minutes: 90
       cleanup-timeout-minutes: 90
+      # creds must outlive test (90) + cleanup (90) + setup
+      aws-role-duration-seconds: 7200
       write-env-files: true
       env-vars: |
         {
