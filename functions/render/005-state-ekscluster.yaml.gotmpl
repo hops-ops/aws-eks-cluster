@@ -28,7 +28,8 @@
 {{- $corednsReady := or (not $eff.addons.coredns.enabled) $obs.addons.coredns.ready }}
 {{- /* Keep the current release while an explicit replacement profile is being created. */}}
 {{- $keepKarpenter := and (ne $eff.fargate.resourceName "fargate-profile") (hasKey $obs._raw "karpenter-release") }}
-{{- $renderKarpenterHelm := and $eff.karpenter.enabled $obs.clusterAuth.ready $karpenterNamespaceReady $corednsReady (ne ($obs.karpenterIrsa.roleArn | default "") "") (or (not $eff.fargate.enabled) (ne ($obs.fargateProfile.id | default "") "") $keepKarpenter) }}
+{{- $bootstrapKarpenter := and $obs.clusterAuth.ready $karpenterNamespaceReady $corednsReady (ne ($obs.karpenterIrsa.roleArn | default "") "") (or (not $eff.fargate.enabled) (ne ($obs.fargateProfile.id | default "") "")) }}
+{{- $renderKarpenterHelm := and $eff.karpenter.enabled (or $keepKarpenter $bootstrapKarpenter) }}
 {{- $renderKarpenterCapacity := and $renderProviderConfigs $obs.karpenterRelease.ready }}
 {{- $renderDefaultStorageClass := and $eff.storage.defaultClass.enabled $obs.clusterAuth.ready (ne ($obs.addons.ebsCsi.id | default "") "") }}
 {{- $renderInterruption := and $eff.karpenter.enabled $eff.karpenter.interruptionQueue.enabled }}

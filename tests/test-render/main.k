@@ -594,7 +594,8 @@ _items = [
                     karpenter.chartVersion = "1.12.1"
                 }
             }
-            observedResources = _ready_observed
+            # CoreDNS can lose readiness/observation while bootstrap pods move.
+            observedResources = [r for r in _ready_observed if r.metadata.name != "test-cluster-coredns"]
             assertResources = [
                 {
                     apiVersion = "eks.aws.m.upbound.io/v1beta1"
