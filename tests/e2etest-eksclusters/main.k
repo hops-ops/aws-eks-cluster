@@ -204,6 +204,8 @@ _items = [
                         }
                         fargate = {
                             enabled = True
+                            profileName = "a-bootstrap"
+                            subnetIds = [_private_subnet_ids[0]]
                         }
                         karpenter = {
                             enabled = True

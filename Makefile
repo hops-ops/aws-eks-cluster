@@ -27,6 +27,7 @@ EXAMPLES := \
     examples/eksclusters/minimal.yaml:: \
     examples/eksclusters/standard.yaml:: \
     examples/eksclusters/import.yaml:: \
+    examples/eksclusters/single-az-fargate.yaml::examples/test/mocks/observed-resources/standard/steps/3 \
     examples/eksclusters/standard.yaml::examples/test/mocks/observed-resources/standard/steps/1 \
     examples/eksclusters/standard.yaml::examples/test/mocks/observed-resources/standard/steps/2 \
     examples/eksclusters/standard.yaml::examples/test/mocks/observed-resources/standard/steps/3

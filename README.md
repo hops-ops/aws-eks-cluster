@@ -119,9 +119,10 @@ spec:
 | `oidc.enabled` | `true` |
 | `fargate.enabled` | `true` |
 | `fargate.profileName` | `bootstrap` |
+| `fargate.subnetIds` | All cluster subnets; independent of EKS control-plane placement. |
 | `karpenter.enabled` | `true` |
 | `karpenter.namespace` | `karpenter` |
-| `karpenter.chartVersion` | `1.12.1` |
+| `karpenter.chartVersion` | `1.15.1` |
 | `karpenter.interruptionQueue.enabled` | `true` |
 | `karpenter.nodeClasses.default.name` | `hops-default` |
 | `karpenter.nodePools.default.name` | `hops-apps` |
@@ -140,3 +141,39 @@ make render:all
 make validate:all
 make test
 ```
+
+
+## Single-AZ Fargate placement and migration
+
+Set `fargate.subnetIds` to an existing private subnet in the desired worker/NAT AZ.
+This affects only the Fargate profile; `subnetIds`/`subnetSelector` still configure
+the EKS control plane. Omitted or empty Fargate subnet IDs preserve the previous
+all-cluster-subnets behavior. Keep the worker NodePool zone aligned separately.
+
+```yaml
+fargate:
+  profileName: a-bootstrap
+  subnetIds: [subnet-0000000000000000a]
+```
+
+[AWS Fargate profiles are immutable](https://docs.aws.amazon.com/eks/latest/userguide/fargate-profile.html).
+For an existing cluster, select a new `profileName` along with the subnet override.
+The new explicit-subnet profile gets its own composition resource key and Usage
+identities; the existing Karpenter Helm release stays rendered while it becomes
+ready. If IRSA observation is temporarily missing, retain the observed Helm values
+until the role is observed again so its working role annotation is preserved.
+The cluster, execution role and unrelated resources keep their identities.
+First exclude `Delete` from the XR's managementPolicies in a separate apply, and
+wait until the existing composed FargateProfile shows neither `Delete` nor `"*"`.
+Only then change `profileName` and `subnetIds`. Changing all three together can
+retire the old resource before its no-delete policy is applied, deleting its AWS
+profile and stopping pods still using it. Do not try to
+mutate the subnet list of a running `bootstrap` profile in place.
+
+Wait for the new profile to be ACTIVE. Label the CoreDNS/Karpenter pod templates
+with `eks.amazonaws.com/fargate-profile: a-bootstrap`, or use a name that sorts
+before the old profile as AWS documents; recycle replicas one at a time and verify
+their actual node AZ/profile and readiness. Retire the unused old AWS profile only
+after no pod uses it. No DNS/Karpenter interruption or full migration is implied
+by a matching render test. Pin an existing Karpenter chart version explicitly when
+upgrading this configuration solely for placement support.

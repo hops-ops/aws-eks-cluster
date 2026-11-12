@@ -94,7 +94,11 @@ spec:
       version: {{ $ec.karpenter.chartVersion | quote }}
     namespace: {{ $ec.karpenter.namespace }}
     wait: true
-    {{- if gt (len $ec.karpenter.overrideAllValues) 0 }}
+    {{- /* Retain working auth/settings while the migration's IRSA observation is absent. */}}
+    {{- if and (eq ($obs.karpenterIrsa.roleArn | default "") "") (hasKey $obs._raw "karpenter-release") }}
+    values:
+      {{- toYaml $obs.karpenterRelease.values | nindent 6 }}
+    {{- else if gt (len $ec.karpenter.overrideAllValues) 0 }}
     values:
       {{- toYaml $ec.karpenter.overrideAllValues | nindent 6 }}
     {{- else }}

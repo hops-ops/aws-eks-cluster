@@ -7,7 +7,7 @@
 {{- $oidcStatus := (($oidcEntry.resource | default dict).status | default dict) }}
 {{- $oidcAtProvider := $oidcStatus.atProvider | default dict }}
 
-{{- $fargateEntry := get $raw "fargate-profile" | default dict }}
+{{- $fargateEntry := get $raw $state.spec.effective.fargate.resourceName | default dict }}
 {{- $fargateStatus := (($fargateEntry.resource | default dict).status | default dict) }}
 {{- $fargateAtProvider := $fargateStatus.atProvider | default dict }}
 
@@ -20,7 +20,10 @@
 {{- $ebsCsiIrsaRole := $ebsCsiIrsaStatus.role | default dict }}
 
 {{- $releaseEntry := get $raw "karpenter-release" | default dict }}
-{{- $releaseStatus := (($releaseEntry.resource | default dict).status | default dict) }}
+{{- $releaseResource := $releaseEntry.resource | default dict }}
+{{- $releaseSpec := $releaseResource.spec | default dict }}
+{{- $releaseForProvider := $releaseSpec.forProvider | default dict }}
+{{- $releaseStatus := ($releaseResource.status | default dict) }}
 {{- $releaseAtProvider := $releaseStatus.atProvider | default dict }}
 
 {{- $queueEntry := get $raw "karpenter-queue" | default dict }}
@@ -52,7 +55,7 @@
     "arn" ($oidcAtProvider.arn | default "")
   )
   "fargateProfile" (dict
-    "ready" (get $readiness "fargate-profile" | default false)
+    "ready" (get $readiness $state.spec.effective.fargate.resourceName | default false)
     "id" ($fargateAtProvider.id | default "")
     "arn" ($fargateAtProvider.arn | default "")
   )
@@ -67,6 +70,7 @@
     "roleName" ($ebsCsiIrsaRole.name | default "")
   )
   "karpenterRelease" (dict
+    "values" ($releaseForProvider.values | default dict)
     "ready" (get $readiness "karpenter-release" | default false)
     "id" ($releaseAtProvider.id | default "")
     "state" ($releaseAtProvider.state | default "")

@@ -33,6 +33,7 @@ jobs:
           { "example": "examples/eksclusters/minimal.yaml" },
           { "example": "examples/eksclusters/standard.yaml" },
           { "example": "examples/eksclusters/import.yaml" },
+          { "example": "examples/eksclusters/single-az-fargate.yaml", "observed_resources": "examples/test/mocks/observed-resources/standard/steps/3" },
           { "example": "examples/eksclusters/standard.yaml", "observed_resources": "examples/test/mocks/observed-resources/standard/steps/1" },
           { "example": "examples/eksclusters/standard.yaml", "observed_resources": "examples/test/mocks/observed-resources/standard/steps/2" },
           { "example": "examples/eksclusters/standard.yaml", "observed_resources": "examples/test/mocks/observed-resources/standard/steps/3" }
