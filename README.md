@@ -160,9 +160,14 @@ fargate:
 For an existing cluster, select a new `profileName` along with the subnet override.
 The new explicit-subnet profile gets its own composition resource key and Usage
 identities; the existing Karpenter Helm release stays rendered while it becomes
-ready. The cluster, execution role and unrelated resources keep their identities.
-Keep `Delete` excluded from the XR's managementPolicies while migrating so the old
-cloud profile is retained when its composed resource is retired. Do not try to
+ready. If IRSA observation is temporarily missing, retain the observed Helm values
+until the role is observed again so its working role annotation is preserved.
+The cluster, execution role and unrelated resources keep their identities.
+First exclude `Delete` from the XR's managementPolicies in a separate apply, and
+wait until the existing composed FargateProfile shows neither `Delete` nor `"*"`.
+Only then change `profileName` and `subnetIds`. Changing all three together can
+retire the old resource before its no-delete policy is applied, deleting its AWS
+profile and stopping pods still using it. Do not try to
 mutate the subnet list of a running `bootstrap` profile in place.
 
 Wait for the new profile to be ACTIVE. Label the CoreDNS/Karpenter pod templates

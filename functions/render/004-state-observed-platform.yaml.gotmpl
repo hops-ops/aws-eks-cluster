@@ -20,7 +20,10 @@
 {{- $ebsCsiIrsaRole := $ebsCsiIrsaStatus.role | default dict }}
 
 {{- $releaseEntry := get $raw "karpenter-release" | default dict }}
-{{- $releaseStatus := (($releaseEntry.resource | default dict).status | default dict) }}
+{{- $releaseResource := $releaseEntry.resource | default dict }}
+{{- $releaseSpec := $releaseResource.spec | default dict }}
+{{- $releaseForProvider := $releaseSpec.forProvider | default dict }}
+{{- $releaseStatus := ($releaseResource.status | default dict) }}
 {{- $releaseAtProvider := $releaseStatus.atProvider | default dict }}
 
 {{- $queueEntry := get $raw "karpenter-queue" | default dict }}
@@ -67,6 +70,7 @@
     "roleName" ($ebsCsiIrsaRole.name | default "")
   )
   "karpenterRelease" (dict
+    "values" ($releaseForProvider.values | default dict)
     "ready" (get $readiness "karpenter-release" | default false)
     "id" ($releaseAtProvider.id | default "")
     "state" ($releaseAtProvider.state | default "")

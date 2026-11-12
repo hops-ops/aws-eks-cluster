@@ -255,6 +255,11 @@ _karpenter_release = {
             "gotemplating.fn.crossplane.io/composition-resource-name" = "karpenter-release"
         }
     }
+    spec.forProvider.values = {
+        serviceAccount.annotations = {"eks.amazonaws.com/role-arn" = "arn:aws:iam::123456789012:role/test-cluster-karpenter"}
+        controller.resources.requests.memory = "1Gi"
+        retainedSetting = "keep-working-values"
+    }
     status = {
         conditions = _ready
         atProvider = {
@@ -594,8 +599,8 @@ _items = [
                     karpenter.chartVersion = "1.12.1"
                 }
             }
-            # CoreDNS can lose readiness/observation while bootstrap pods move.
-            observedResources = [r for r in _ready_observed if r.metadata.name != "test-cluster-coredns"]
+            # CoreDNS and IRSA observations can be missing while bootstrap pods move.
+            observedResources = [r for r in _ready_observed if r.metadata.name not in ["test-cluster-coredns", "test-cluster-karpenter"] or r.kind == "Release"]
             assertResources = [
                 {
                     apiVersion = "eks.aws.m.upbound.io/v1beta1"
@@ -619,6 +624,7 @@ _items = [
                     kind = "Release"
                     metadata.name = "test-cluster-karpenter"
                     spec.forProvider.chart.version = "1.12.1"
+                    spec.forProvider.values = _karpenter_release.spec.forProvider.values
                 }
             ]
         }
