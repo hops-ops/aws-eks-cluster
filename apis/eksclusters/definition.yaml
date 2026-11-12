@@ -198,7 +198,7 @@ spec:
                   subnetIds:
                     type: array
                     description: Private subnet IDs for Fargate only. Omitted or empty uses all cluster subnets. Existing profiles are immutable; use a new profileName when migrating.
-                    uniqueItems: true
+                    x-kubernetes-list-type: set
                     items:
                       type: string
                       minLength: 1
