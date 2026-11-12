@@ -160,8 +160,12 @@ fargate:
 For an existing cluster, select a new `profileName` along with the subnet override.
 The new explicit-subnet profile gets its own composition resource key and Usage
 identities; the existing Karpenter Helm release stays rendered while it becomes
-ready. If IRSA observation is temporarily missing, retain the observed Helm values
-until the role is observed again so its working role annotation is preserved.
+ready. Keep the existing CoreDNS add-on rendered too, even if its readiness or
+observation temporarily disappears while the existing Karpenter release remains.
+With Karpenter disabled, an observed CoreDNS add-on ID still retains that add-on.
+A fresh cluster continues to wait for the Fargate profile before creating CoreDNS.
+If IRSA observation is temporarily missing, retain the observed Helm values until
+the role is observed again so its working role annotation is preserved.
 The cluster, execution role and unrelated resources keep their identities.
 First exclude `Delete` from the XR's managementPolicies in a separate apply, and
 wait until the existing composed FargateProfile shows neither `Delete` nor `"*"`.

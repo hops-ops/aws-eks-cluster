@@ -626,7 +626,39 @@ _items = [
                     spec.forProvider.chart.version = "1.12.1"
                     spec.forProvider.values = _karpenter_release.spec.forProvider.values
                 }
+                {
+                    apiVersion = "eks.aws.m.upbound.io/v1beta1"
+                    kind = "Addon"
+                    metadata.name = "test-cluster-coredns"
+                    spec.forProvider.addonName = "coredns"
+                }
             ]
+        }
+    }
+
+    metav1alpha1.CompositionTest {
+        metadata.name = "migration-retains-observed-coredns-without-karpenter-or-readiness"
+        spec = {
+            compositionPath = "apis/eksclusters/composition.yaml"
+            xrdPath = "apis/eksclusters/definition.yaml"
+            timeoutSeconds = 120
+            validate = False
+            xr = awsv1alpha1.EKSCluster {
+                metadata.name = "test-cluster"
+                spec = _base_spec | {
+                    fargate = {profileName = "a-bootstrap", subnetIds = ["subnet-aaa"]}
+                    karpenter.enabled = False
+                }
+            }
+            observedResources = _cluster_observed + [_coredns_addon | {
+                status.conditions = [{type = "Ready", status = "False", reason = "Unavailable"}]
+            }]
+            assertResources = [{
+                apiVersion = "eks.aws.m.upbound.io/v1beta1"
+                kind = "Addon"
+                metadata.name = "test-cluster-coredns"
+                spec.forProvider.addonName = "coredns"
+            }]
         }
     }
 
