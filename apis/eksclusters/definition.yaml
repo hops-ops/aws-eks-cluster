@@ -237,7 +237,7 @@ spec:
                   chartVersion:
                     type: string
                     # renovate: datasource=docker depName=karpenter/karpenter registryUrl=https://public.ecr.aws
-                    default: "1.15.2"
+                    default: "1.15.3"
                   serviceAccountName:
                     type: string
                     default: karpenter
