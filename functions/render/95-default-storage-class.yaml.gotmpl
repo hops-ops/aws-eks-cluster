@@ -37,7 +37,7 @@ spec:
     name: {{ $ec.cluster.name }}
     kind: ProviderConfig
 
-{{ if and (get $readiness "default-storage-class") (get $readiness "k8s-provider-config") }}
+{{ if and (not $ec.useExistingProviderConfigs) (get $readiness "default-storage-class") (get $readiness "k8s-provider-config") }}
 ---
 apiVersion: protection.crossplane.io/v1beta1
 kind: Usage

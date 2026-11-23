@@ -149,6 +149,7 @@
     "name" ($providerConfigRef.name | default "default")
     "kind" ($providerConfigRef.kind | default "ProviderConfig")
   )
+  "useExistingProviderConfigs" ($spec.useExistingProviderConfigs | default false)
   "kubernetesProviderConfigRef" (dict
     "name" ($kubernetesProviderConfigRef.name | default "default")
     "kind" ($kubernetesProviderConfigRef.kind | default "ProviderConfig")

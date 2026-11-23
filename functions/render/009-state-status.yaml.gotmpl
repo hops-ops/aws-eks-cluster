@@ -5,7 +5,7 @@
 
 {{- $ready := and
   $obs.cluster.ready
-  $obs.clusterAuth.ready
+  $ec.clusterCredentialsReady
   (or (not $ec.cluster.encryptionEnabled) $obs.kms.ready)
   (or (not $ec.oidc.enabled) $obs.oidcProvider.ready)
   (or (not $ec.fargate.enabled) $obs.fargateProfile.ready)
