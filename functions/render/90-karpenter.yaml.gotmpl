@@ -3,8 +3,8 @@
 {{- $ec := $state.ekscluster }}
 {{- $obs := $state.observed }}
 {{- $readiness := $obs._readiness }}
-{{- $k8sProviderConfigReady := get $readiness "k8s-provider-config" | default false }}
-{{- $helmProviderConfigReady := get $readiness "helm-provider-config" | default false }}
+{{- $k8sProviderConfigReady := and (not $ec.useExistingProviderConfigs) (get $readiness "k8s-provider-config" | default false) }}
+{{- $helmProviderConfigReady := and (not $ec.useExistingProviderConfigs) (get $readiness "helm-provider-config" | default false) }}
 
 {{- if $ec.render.karpenterNamespace }}
 ---

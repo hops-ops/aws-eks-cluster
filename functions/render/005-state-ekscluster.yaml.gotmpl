@@ -15,23 +15,24 @@
 {{- $renderIamAttachments := ne ($obs.controlPlaneRole.arn | default "") "" }}
 {{- $renderKms := $eff.encryptionEnabled }}
 {{- $renderCluster := and (ne ($obs.controlPlaneRole.arn | default "") "") (or (not $eff.encryptionEnabled) (ne ($obs.kms.arn | default "") "")) }}
-{{- $renderClusterAuth := ne ($obs.cluster.endpoint | default "") "" }}
-{{- $renderProviderConfigs := $obs.clusterAuth.ready }}
+{{- $renderClusterAuth := and (not $eff.useExistingProviderConfigs) (ne ($obs.cluster.endpoint | default "") "") }}
+{{- $renderProviderConfigs := and (not $eff.useExistingProviderConfigs) $obs.clusterAuth.ready }}
+{{- $clusterCredentialsReady := ternary $obs.cluster.ready $obs.clusterAuth.ready $eff.useExistingProviderConfigs }}
 {{- $renderOidc := and $eff.oidc.enabled (ne ($obs.cluster.oidcIssuer | default "") "") }}
 {{- $renderKarpenterIrsa := and $eff.karpenter.enabled (ne ($obs.oidcProvider.arn | default "") "") }}
 {{- $renderEbsCsiIrsa := and $eff.addons.ebsCsi.enabled (ne ($obs.oidcProvider.arn | default "") "") }}
 {{- $renderFargate := and $eff.fargate.enabled (ne ($obs.fargateRole.arn | default "") "") (ne ($obs.cluster.endpoint | default "") "") }}
 {{- $renderAddons := ne ($obs.cluster.endpoint | default "") "" }}
-{{- $renderKarpenterNamespace := and $eff.karpenter.enabled $renderProviderConfigs }}
+{{- $renderKarpenterNamespace := and $eff.karpenter.enabled $clusterCredentialsReady }}
 {{- $renderEc2SpotServiceLinkedRole := $eff.karpenter.enabled }}
 {{- $karpenterNamespaceReady := get $obs._readiness "karpenter-namespace" | default false }}
 {{- $corednsReady := or (not $eff.addons.coredns.enabled) $obs.addons.coredns.ready }}
 {{- /* Keep the current release while an explicit replacement profile is being created. */}}
 {{- $keepKarpenter := and (ne $eff.fargate.resourceName "fargate-profile") (hasKey $obs._raw "karpenter-release") }}
-{{- $bootstrapKarpenter := and $obs.clusterAuth.ready $karpenterNamespaceReady $corednsReady (ne ($obs.karpenterIrsa.roleArn | default "") "") (or (not $eff.fargate.enabled) (ne ($obs.fargateProfile.id | default "") "")) }}
+{{- $bootstrapKarpenter := and $clusterCredentialsReady $karpenterNamespaceReady $corednsReady (ne ($obs.karpenterIrsa.roleArn | default "") "") (or (not $eff.fargate.enabled) (ne ($obs.fargateProfile.id | default "") "")) }}
 {{- $renderKarpenterHelm := and $eff.karpenter.enabled (or $keepKarpenter $bootstrapKarpenter) }}
-{{- $renderKarpenterCapacity := and $renderProviderConfigs $obs.karpenterRelease.ready }}
-{{- $renderDefaultStorageClass := and $eff.storage.defaultClass.enabled $obs.clusterAuth.ready (ne ($obs.addons.ebsCsi.id | default "") "") }}
+{{- $renderKarpenterCapacity := and $clusterCredentialsReady $obs.karpenterRelease.ready }}
+{{- $renderDefaultStorageClass := and $eff.storage.defaultClass.enabled $clusterCredentialsReady (ne ($obs.addons.ebsCsi.id | default "") "") }}
 {{- $renderInterruption := and $eff.karpenter.enabled $eff.karpenter.interruptionQueue.enabled }}
 
 {{- $ec := dict
@@ -74,6 +75,8 @@
   "storage" $eff.storage
   "tags" $eff.tags
   "labels" $eff.labels
+  "useExistingProviderConfigs" $eff.useExistingProviderConfigs
+  "clusterCredentialsReady" $clusterCredentialsReady
   "managementPolicies" $eff.managementPolicies
   "externalName" $eff.externalName
   "kms" $eff.kms

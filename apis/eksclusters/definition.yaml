@@ -81,6 +81,13 @@ spec:
                   kind:
                     type: string
                     default: ProviderConfig
+              useExistingProviderConfigs:
+                type: boolean
+                default: false
+                description: >-
+                  Reuse existing namespaced Kubernetes and Helm ProviderConfigs
+                  named after the cluster. Set for self-managed clusters that
+                  already have in-cluster credentials.
               kubernetesProviderConfigRef:
                 type: object
                 description: Management-cluster Kubernetes ProviderConfig used to create child ProviderConfigs.

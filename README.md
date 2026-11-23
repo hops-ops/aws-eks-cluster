@@ -108,6 +108,19 @@ spec:
     externalName: arn:aws:iam::123456789012:oidc-provider/oidc.eks.us-east-2.amazonaws.com/id/EXAMPLE
 ```
 
+## Reuse in-cluster provider configs
+
+For a self-managed EKS cluster with existing namespaced Kubernetes and Helm
+ProviderConfigs, set `spec.useExistingProviderConfigs: true`. Both configs must
+be in the claim's namespace and named after `spec.clusterName`. The EKS
+Composition uses these configs for Karpenter and storage. It leaves the configs
+in the care of their existing controller and skips generation of a kubeconfig.
+
+For an existing claim, verify that the live provider configs use independent
+credentials before enabling this setting. Crossplane then retires the generated
+wrappers and ClusterAuth record. The default continues to generate kubeconfig
+credentials for remote management.
+
 ## Defaults
 
 | Field | Default |
