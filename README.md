@@ -72,6 +72,15 @@ spec:
           cpu: "4"
 ```
 
+Both `karpenter.nodeClasses.default.kubelet` and
+`karpenter.nodeClasses.storageNvme.kubelet` accept native EC2NodeClass kubelet
+settings, for example `kubelet: {maxPods: 110}` for a cluster whose CNI supports
+that density. Omit the field to retain Karpenter's defaults. Set pod limits here
+for Karpenter's scheduler. With `amiFamily: Custom`, also set matching kubelet
+values in `userData`: Karpenter does not bootstrap those settings for that family.
+Raising the pod count does not add CPU or
+memory, and applying a changed NodeClass can trigger worker replacement.
+
 ## Import
 
 Use `managementPolicies` without `Delete` when adopting existing cluster
